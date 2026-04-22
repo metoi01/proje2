@@ -1,9 +1,0 @@
-R_DEF: Internal format may change without notice
-local
-color ares_accent
-color ares_accent2
-color ares_bg
-color ares_surface
-color ares_text
-string app_name
-style Theme.AresX

@@ -1,5 +1,0 @@
-
-> ares-x@1.0.0 dev:backend
-> tsx backend/src/server.ts
-
-ARES-X backend listening on http://localhost:3001
