@@ -1,0 +1,40 @@
+classDiagram
+  class SurveySchema {
+    id
+    title
+    version
+    schemaHash
+    questions
+    edges
+  }
+  class SurveyQuestion {
+    id
+    type
+    required
+    stable
+  }
+  class ConditionalEdge {
+    from
+    to
+    predicate
+  }
+  class RclrEngine {
+    validateDag()
+    resolveVisibility()
+    resolveSyncConflict()
+  }
+  class JsonStore {
+    read()
+    write()
+    reset()
+  }
+  class MainActivity {
+    showLogin()
+    showSurvey()
+    syncAnswers()
+  }
+  SurveySchema "1" *-- "*" SurveyQuestion
+  SurveySchema "1" *-- "*" ConditionalEdge
+  RclrEngine --> SurveySchema
+  JsonStore --> SurveySchema
+  MainActivity --> RclrEngine

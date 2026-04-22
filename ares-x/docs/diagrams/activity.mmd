@@ -1,0 +1,18 @@
+flowchart TD
+  Start([Start]) --> Auth{Authenticated?}
+  Auth -- No --> Login[ARES Login]
+  Login --> Fetch[Fetch Published Survey]
+  Auth -- Yes --> Fetch
+  Fetch --> Render[Render Visible Root Questions]
+  Render --> Answer[User Selects Answer]
+  Answer --> Resolve[Run RCLR Recursively]
+  Resolve --> Version{Schema Version Changed?}
+  Version -- No --> Complete{Visible Required Path Complete?}
+  Version -- Yes --> Recover{Can Map Answers?}
+  Recover -- Yes --> Atomic[Atomic State Recovery]
+  Recover -- No --> Rollback[Rollback To Stable Node]
+  Atomic --> Render
+  Rollback --> Render
+  Complete -- No --> Render
+  Complete -- Yes --> Send[Enable Send Button]
+  Send --> End([Submitted])

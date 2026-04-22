@@ -1,0 +1,14 @@
+stateDiagram-v2
+  [*] --> LoggedOut
+  LoggedOut --> SurveyList: login ok
+  SurveyList --> ActiveSession: choose survey
+  ActiveSession --> Resolving: answer changed
+  Resolving --> ActiveSession: same schema / ok
+  Resolving --> AtomicRecovered: compatible version change
+  Resolving --> RolledBack: incompatible version change
+  Resolving --> ConflictFlagged: zombie/orphan detected
+  AtomicRecovered --> ActiveSession
+  RolledBack --> ActiveSession
+  ConflictFlagged --> ActiveSession: user continues from stable node
+  ActiveSession --> Submitted: send enabled + tapped
+  Submitted --> [*]

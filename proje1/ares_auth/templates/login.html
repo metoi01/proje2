@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block extra_styles %}
+.auth-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 130px);
+  padding: 32px 16px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+}
+.auth-header {
+  margin-bottom: 32px;
+  text-align: center;
+}
+.auth-header h1 {
+  font-family: var(--font-head);
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: .04em;
+}
+.auth-header p {
+  color: var(--muted);
+  font-size: .8rem;
+  margin-top: 6px;
+}
+.social-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.social-icon {
+  width: 18px; height: 18px;
+  vertical-align: middle;
+}
+.lockout-timer {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--danger);
+}
+{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card card">
+
+    <div class="auth-header">
+      <h1>Sign In</h1>
+      <p>Access your ARES account securely.</p>
+    </div>
+
+    {% if risk_info %}
+    <div class="risk-panel" id="risk-panel">
+      <h4>⚠ Security Alert — Risk Score: {{ risk_info.risk_score }}/100</h4>
+      <div class="risk-score-bar">
+        <div class="risk-score-fill
+          {% if risk_info.risk_score < 40 %}risk-low
+          {% elif risk_info.risk_score < 70 %}risk-medium
+          {% else %}risk-high{% endif %}"
+          style="width: {{ risk_info.risk_score }}%">
+        </div>
+      </div>
+
+      {% if risk_info.score_breakdown %}
+      <table style="width:100%;margin-top:8px;font-size:.74rem;border-collapse:collapse;">
+        <tr style="color:var(--muted);">
+          <th style="text-align:left;padding:2px 0;">Factor</th>
+          <th style="text-align:right;">Score</th>
+        </tr>
+        <tr><td>F_score (failures)</td><td style="text-align:right;">+{{ risk_info.score_breakdown.F_score }}</td></tr>
+        <tr><td>IP_score (new IP)</td><td style="text-align:right;">+{{ risk_info.score_breakdown.IP_score }}</td></tr>
+        <tr><td>UA_score (user-agent)</td><td style="text-align:right;">+{{ risk_info.score_breakdown.UA_score }}</td></tr>
+        <tr><td>T_score (time)</td><td style="text-align:right;">+{{ risk_info.score_breakdown.T_score }}</td></tr>
+        <tr style="border-top:1px solid rgba(255,183,3,.2);font-weight:700;">
+          <td>TOTAL</td><td style="text-align:right;">{{ risk_info.risk_score }}/100</td>
+        </tr>
+      </table>
+      {% endif %}
+
+      {% if risk_info.reasons %}
+        <ul style="padding-left:16px; margin-top:8px;">
+          {% for r in risk_info.reasons %}
+          <li style="margin-bottom:3px;">{{ r }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if risk_info.llm_error %}
+      <div style="margin-top:12px; padding:10px 12px;
+                  background:rgba(255,77,109,.08); border:1px solid rgba(255,77,109,.3);
+                  border-radius:6px; font-size:.75rem; color:var(--danger);">
+        <strong>⚠ LLM Analysis Unavailable</strong><br/>
+        <span style="color:var(--muted);">{{ risk_info.llm_error }}</span>
+      </div>
+      {% endif %}
+
+      {% if risk_info.llm_analysis %}
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,183,3,.2);">
+        <strong style="color:var(--warn);">LLM Verdict:</strong>
+        <span id="llm-verdict"
+          style="color:{% if risk_info.llm_analysis.verdict=='BLOCK' %}var(--danger){% elif risk_info.llm_analysis.verdict=='CHALLENGE' %}var(--warn){% else %}var(--success){% endif %}">
+          {{ risk_info.llm_analysis.verdict }} ({{ risk_info.llm_analysis.confidence }}% confidence)
+        </span><br/>
+        <span id="llm-summary" style="color:var(--muted);">{{ risk_info.llm_analysis.summary }}</span><br/>
+        <em style="color:var(--muted);">Action: {{ risk_info.llm_analysis.recommended_action }}</em>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger" id="login-error" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/login" novalidate id="login-form">
+      <div class="form-group">
+        <label for="identifier">Email or Phone</label>
+        <input type="text" id="identifier" name="identifier" class="form-control"
+          placeholder="alice@ares.test" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" class="form-control"
+          placeholder="••••••••" autocomplete="current-password" required />
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
+        <a href="#" class="text-sm" id="forgot-password-link">Forgot password?</a>
+      </div>
+      <button type="submit" id="login-btn" class="btn btn-primary btn-full">
+        Sign In
+      </button>
+    </form>
+
+    <div class="divider">or continue with</div>
+
+    <div class="social-grid">
+      <a href="/auth/google" id="google-login-btn" class="btn btn-google">
+        <svg class="social-icon" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Google
+      </a>
+      <a href="/auth/facebook" id="facebook-login-btn" class="btn btn-facebook">
+        <svg class="social-icon" fill="white" viewBox="0 0 24 24">
+          <path d="M24 12.073C24 5.446 18.627 0 12 0S0 5.446 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+        </svg>
+        Facebook
+      </a>
+    </div>
+
+    <p class="text-center text-sm text-muted mt-4">
+      Don't have an account? <a href="/register" id="register-link">Create one</a>
+    </p>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Lockout countdown timer
+  const errorEl = document.getElementById('login-error');
+  if (errorEl) {
+    const match = errorEl.textContent.match(/Wait (\d+)s/);
+    if (match) {
+      let seconds = parseInt(match[1], 10);
+      const countdownEl = document.createElement('span');
+      countdownEl.id = 'lockout-countdown';
+      countdownEl.className = 'lockout-timer';
+      countdownEl.textContent = ` (${seconds}s remaining)`;
+      errorEl.appendChild(countdownEl);
+      const iv = setInterval(() => {
+        seconds--;
+        countdownEl.textContent = ` (${seconds}s remaining)`;
+        if (seconds <= 0) { clearInterval(iv); countdownEl.textContent = ' — you may try again.'; }
+      }, 1000);
+    }
+  }
+
+  // TC2: Popup obstruction simulation (20% chance)
+  (function maybeShowPopup() {
+    if (Math.random() < 0.20) {
+      const popup = document.createElement('div');
+      popup.id = 'promo-popup';
+      popup.style.cssText = `
+        position:fixed; bottom:24px; right:24px;
+        background:#111320; border:1px solid #7b5cff;
+        border-radius:8px; padding:20px 24px;
+        z-index:9999; width:280px;
+        box-shadow:0 0 24px rgba(123,92,255,.3);
+        font-family:'Space Mono',monospace; font-size:.78rem;
+        color:#e8eaf6;
+      `;
+      popup.innerHTML = `
+        <strong style="color:#7b5cff;">✦ Security Notice</strong>
+        <p style="margin:8px 0;">Your session is being monitored for unusual activity.</p>
+        <button id="close-popup-btn"
+          style="background:#7b5cff;color:#fff;border:none;padding:8px 16px;
+                 border-radius:6px;cursor:pointer;font-family:inherit;width:100%;">
+          Dismiss
+        </button>
+      `;
+      document.body.appendChild(popup);
+      document.getElementById('close-popup-btn')
+        .addEventListener('click', () => popup.remove());
+    }
+  })();
+
+  // TC1: Dynamic login button ID mutation (injected by test via API)
+  (function pollBtnId() {
+    fetch('/api/login-btn-id')
+      .then(r => r.json())
+      .then(data => {
+        const btn = document.getElementById('login-btn');
+        if (btn && data.id && data.id !== 'login-btn') {
+          btn.id = data.id;
+        }
+      }).catch(() => {});
+  })();
+</script>
+{% endblock %}

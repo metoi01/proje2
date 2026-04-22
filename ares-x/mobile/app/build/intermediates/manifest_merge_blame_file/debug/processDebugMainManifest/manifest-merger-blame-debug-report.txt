@@ -1,0 +1,48 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="edu.bilkent.aresx"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="23"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:3:5-67
+11-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:3:22-64
+12
+13    <application
+13-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:5:5-19:19
+14        android:allowBackup="false"
+14-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:6:9-36
+15        android:debuggable="true"
+16        android:extractNativeLibs="false"
+17        android:label="@string/app_name"
+17-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:9:9-41
+18        android:supportsRtl="true"
+18-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:10:9-35
+19        android:theme="@style/Theme.AresX"
+19-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:7:9-43
+20        android:usesCleartextTraffic="true" >
+20-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:8:9-44
+21        <activity
+21-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:11:9-18:20
+22            android:name="edu.bilkent.aresx.MainActivity"
+22-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:12:13-41
+23            android:exported="true" >
+23-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:13:13-36
+24            <intent-filter>
+24-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:14:13-17:29
+25                <action android:name="android.intent.action.MAIN" />
+25-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:15:17-69
+25-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:15:25-66
+26
+27                <category android:name="android.intent.category.LAUNCHER" />
+27-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:16:17-77
+27-->C:\Users\merto\Desktop\proje2\ares-x\mobile\app\src\main\AndroidManifest.xml:16:27-74
+28            </intent-filter>
+29        </activity>
+30    </application>
+31
+32</manifest>

@@ -1,0 +1,7 @@
+edu.bilkent.aresx:style/Theme.AresX = 0x7f030000
+edu.bilkent.aresx:color/ares_surface = 0x7f010003
+edu.bilkent.aresx:color/ares_bg = 0x7f010002
+edu.bilkent.aresx:color/ares_accent = 0x7f010000
+edu.bilkent.aresx:color/ares_accent2 = 0x7f010001
+edu.bilkent.aresx:string/app_name = 0x7f020000
+edu.bilkent.aresx:color/ares_text = 0x7f010004

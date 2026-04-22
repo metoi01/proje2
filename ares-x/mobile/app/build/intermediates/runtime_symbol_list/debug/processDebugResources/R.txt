@@ -1,0 +1,7 @@
+int color ares_accent 0x7f010000
+int color ares_accent2 0x7f010001
+int color ares_bg 0x7f010002
+int color ares_surface 0x7f010003
+int color ares_text 0x7f010004
+int string app_name 0x7f020000
+int style Theme_AresX 0x7f030000

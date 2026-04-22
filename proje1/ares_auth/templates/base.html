@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARES — {% block title %}Secure Auth{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0a0c12;
+      --surface:   #111320;
+      --border:    #1e2438;
+      --accent:    #00e5ff;
+      --accent2:   #7b5cff;
+      --danger:    #ff4d6d;
+      --warn:      #ffb703;
+      --success:   #06d6a0;
+      --text:      #e8eaf6;
+      --muted:     #6b7280;
+      --font-head: 'Syne', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+      --radius:    8px;
+      --glow:      0 0 24px rgba(0,229,255,.15);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    /* animated grid background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridPan 60s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes gridPan {
+      from { background-position: 0 0; }
+      to   { background-position: 40px 40px; }
+    }
+    .page-wrap {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,12,18,.85);
+    }
+    .nav-brand {
+      font-family: var(--font-head);
+      font-weight: 800;
+      font-size: 1.3rem;
+      letter-spacing: .08em;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .nav-brand span { color: var(--accent2); }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .8rem;
+      margin-left: 24px;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: var(--glow);
+    }
+    .form-group { margin-bottom: 20px; }
+    .form-group label {
+      display: block;
+      font-size: .72rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .form-control {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: .9rem;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+    }
+    .form-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,229,255,.1);
+    }
+    .form-control::placeholder { color: var(--muted); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 24px;
+      border: none; border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: .85rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+    .btn:hover  { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary {
+      background: var(--accent);
+      color: #0a0c12;
+      box-shadow: 0 0 16px rgba(0,229,255,.3);
+    }
+    .btn-primary:hover { box-shadow: 0 0 24px rgba(0,229,255,.5); }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-full { width: 100%; }
+    .btn-google   { background: #fff; color: #333; border: 1px solid #ddd; }
+    .btn-facebook { background: #1877f2; color: #fff; }
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: .82rem;
+      margin-bottom: 20px;
+      border-left: 3px solid;
+    }
+    .alert-danger  { background: rgba(255,77,109,.1);  border-color: var(--danger); color: var(--danger); }
+    .alert-warn    { background: rgba(255,183,3,.1);   border-color: var(--warn);   color: var(--warn); }
+    .alert-success { background: rgba(6,214,160,.1);   border-color: var(--success);color: var(--success); }
+    .alert-info    { background: rgba(0,229,255,.1);   border-color: var(--accent); color: var(--accent); }
+    .risk-panel {
+      background: rgba(255,183,3,.06);
+      border: 1px solid rgba(255,183,3,.3);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 20px;
+      font-size: .78rem;
+    }
+    .risk-panel h4 {
+      font-family: var(--font-head);
+      color: var(--warn);
+      margin-bottom: 8px;
+      font-size: .85rem;
+      letter-spacing: .06em;
+    }
+    .risk-score-bar {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+    .risk-score-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+    .risk-low    { background: var(--success); }
+    .risk-medium { background: var(--warn); }
+    .risk-high   { background: var(--danger); }
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--muted); font-size: .75rem;
+      margin: 20px 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--border);
+    }
+    .text-muted  { color: var(--muted); }
+    .text-center { text-align: center; }
+    .text-sm     { font-size: .8rem; }
+    .mt-2        { margin-top: 8px; }
+    .mt-4        { margin-top: 16px; }
+    a            { color: var(--accent); text-decoration: none; }
+    a:hover      { text-decoration: underline; }
+    footer {
+      margin-top: auto;
+      padding: 16px 32px;
+      border-top: 1px solid var(--border);
+      font-size: .72rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    {% block extra_styles %}{% endblock %}
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+  <nav>
+    <a class="nav-brand" href="/">ARES<span>.</span></a>
+    <div class="nav-links">
+      {% if session.get('user') %}
+        <a href="/dashboard">Dashboard</a>
+        <a href="/logout">Logout</a>
+      {% else %}
+        <a href="/login">Login</a>
+        <a href="/register">Register</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div style="max-width:420px;margin:16px auto 0;">
+          <div class="alert alert-{{ category if category != 'message' else 'info' }}">{{ message }}</div>
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    ARES &mdash; CS458 Software Verification &amp; Validation &mdash; Spring 2025-2026
+  </footer>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

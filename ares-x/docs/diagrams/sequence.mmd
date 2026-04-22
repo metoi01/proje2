@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant A as Admin Web
+  participant B as Backend API
+  participant M as Android Client
+  participant R as GBCR/RCLR
+  A->>B: Publish schema v2
+  M->>R: Select answer on schema v1
+  M->>B: PATCH answers(clientVersion=v1)
+  B->>R: Compare old DAG v1 with current DAG v2
+  alt answers map cleanly
+    R-->>B: atomic_recovery
+    B-->>M: preserved answers + v2 schema
+  else visible path removed or orphan created
+    R-->>B: RCLR_ROLLBACK / RCLR_CONFLICT
+    B-->>M: stable node + sanitized answers
+  end
+  M->>R: Re-render valid visible path

@@ -1,0 +1,42 @@
+{
+  "name": "ares-x",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:backend": "tsx backend/src/server.ts",
+    "dev:web": "vite --host 0.0.0.0",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:web": "vite build",
+    "test:e2e:web": "node tests/e2e/web-architect.selenium.mjs",
+    "test:e2e:mobile": "node tests/e2e/mobile.appium.mjs",
+    "test:e2e:sync": "node tests/e2e/sync-conflict.mjs",
+    "docs:screenshots": "node docs/capture-screenshots.mjs",
+    "docs:report": "node docs/generate-report.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/supertest": "^6.0.2",
+    "appium": "^2.12.1",
+    "appium-uiautomator2-driver": "^4.2.9",
+    "selenium-webdriver": "^4.27.0",
+    "supertest": "^7.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.6",
+    "vitest": "^2.1.8"
+  }
+}

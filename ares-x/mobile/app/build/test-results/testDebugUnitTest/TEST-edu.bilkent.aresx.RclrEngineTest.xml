@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="edu.bilkent.aresx.RclrEngineTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-04-21T11:23:06" hostname="OKHAN" time="0.03">
+  <properties/>
+  <testcase name="matchesBackendVisibilityForBranchingPath" classname="edu.bilkent.aresx.RclrEngineTest" time="0.029"/>
+  <testcase name="sendButtonUnlocksAfterRequiredVisiblePathIsComplete" classname="edu.bilkent.aresx.RclrEngineTest" time="0.001"/>
+  <testcase name="hiddenAnswersAreReportedForClearing" classname="edu.bilkent.aresx.RclrEngineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
