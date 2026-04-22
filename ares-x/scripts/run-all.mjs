@@ -178,12 +178,24 @@ function pipeOutput(label, stream) {
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || '';
     for (const line of lines) {
-      if (line.trim()) log(`[${label}] ${line}`);
+      if (!line.trim()) continue;
+      if (shouldSuppressManagedLine(label, line)) continue;
+      log(`[${label}] ${line}`);
     }
   });
   stream.on('end', () => {
-    if (buffer.trim()) log(`[${label}] ${buffer}`);
+    if (buffer.trim() && !shouldSuppressManagedLine(label, buffer)) log(`[${label}] ${buffer}`);
   });
+}
+
+function shouldSuppressManagedLine(label, line) {
+  if (label !== 'emulator') return false;
+  return [
+    /QMetaObject::connectSlotsByName/,
+    /QObject::connect:/,
+    /skipping QEventPoint/,
+    /no target window/
+  ].some((pattern) => pattern.test(line));
 }
 
 function spawnManaged(label, command, commandArgs = [], options = {}) {
@@ -686,7 +698,20 @@ function installAndLaunchApk(adb, serial) {
     warn(`APK was not found: ${mobileApk}`);
     return;
   }
-  run(adb, ['-s', serial, 'install', '-r', mobileApk], { allowFail: true });
+  const install = runCapture(adb, ['-s', serial, 'install', '-r', mobileApk], { cwd: projectRoot, env });
+  const installOutput = `${install.stdout}${install.stderr}`;
+  if (!install.ok && installOutput.includes('INSTALL_FAILED_UPDATE_INCOMPATIBLE')) {
+    warn('Existing emulator app signature does not match the new debug build. Removing old app and retrying install.');
+    run(adb, ['-s', serial, 'uninstall', 'edu.bilkent.aresx'], { allowFail: true });
+    const retry = runCapture(adb, ['-s', serial, 'install', '-r', mobileApk], { cwd: projectRoot, env });
+    if (!retry.ok) {
+      warn((`${retry.stdout}${retry.stderr}` || 'APK reinstall failed.').trim());
+      return;
+    }
+  } else if (!install.ok) {
+    warn((installOutput || 'APK install failed.').trim());
+    return;
+  }
   run(adb, ['-s', serial, 'shell', 'am', 'start', '-n', 'edu.bilkent.aresx/.MainActivity'], { allowFail: true });
 }
 

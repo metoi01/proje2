@@ -64,6 +64,14 @@ export async function createAppiumSession(server, capabilities) {
         await command('POST', `/element/${id}/click`, {});
       });
     },
+    async type(accessibilityId, value) {
+      await retryStale(async () => {
+        const id = await elementId(accessibilityId);
+        await command('POST', `/element/${id}/click`, {});
+        await command('POST', `/element/${id}/clear`, {});
+        await command('POST', `/element/${id}/value`, { text: value, value: Array.from(value) });
+      });
+    },
     async text(accessibilityId) {
       return retryStale(async () => {
         const id = await elementId(accessibilityId);

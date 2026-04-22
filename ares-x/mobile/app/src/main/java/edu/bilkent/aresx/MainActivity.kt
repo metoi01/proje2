@@ -6,10 +6,13 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,12 +20,27 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class MainActivity : Activity() {
+    private data class SubmissionReceipt(
+        val surveyId: String,
+        val surveyTitle: String,
+        val sessionId: String,
+        val branchLabel: String?,
+        val answeredCount: Int,
+        val visibleStepCount: Int,
+        val submittedAt: String,
+        val path: List<String>
+    )
+
     private val baseUrl = "http://10.0.2.2:3001"
     private var userId = "u-alice"
     private var schema: SurveySchema? = null
     private var sessionId: String? = null
     private val answers = linkedMapOf<String, Any?>()
     private var conflictMessage: String? = null
+    private var sendButtonRef: Button? = null
+    private var visiblePathRef: TextView? = null
+    private var renderedVisibleQuestionIds: List<String> = emptyList()
+    private var pendingScrollToEnd = false
 
     private val bgColor = Color.parseColor("#070B14")
     private val surfaceColor = Color.parseColor("#0F1726")
@@ -34,17 +52,18 @@ class MainActivity : Activity() {
     private val textSecondaryColor = Color.parseColor("#93A4BB")
     private val warningColor = Color.parseColor("#FFB703")
     private val dangerColor = Color.parseColor("#FF6B81")
+    private val successColor = Color.parseColor("#43D17A")
+    private val successSoftColor = Color.parseColor("#11261A")
     private val subduedButtonTextColor = Color.parseColor("#6F859C")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bgColor
-        window.navigationBarColor = bgColor
         window.decorView.setBackgroundColor(bgColor)
         showLogin()
     }
 
     private fun showLogin() {
+        clearSurveyBindings()
         val (root, content) = screen()
 
         val hero = sectionCard(emphasis = true)
@@ -83,10 +102,11 @@ class MainActivity : Activity() {
         form.addView(status)
         content.addView(form)
 
-        setContentView(root)
+        replaceContent(root)
     }
 
     private fun showSurveyList() {
+        clearSurveyBindings()
         val (root, content) = screen()
 
         val hero = sectionCard(emphasis = true)
@@ -118,7 +138,7 @@ class MainActivity : Activity() {
             }
         }
 
-        setContentView(root)
+        replaceContent(root)
     }
 
     private fun startSession(surveyId: String) {
@@ -139,6 +159,7 @@ class MainActivity : Activity() {
         val current = schema ?: return
         val visibility = RclrEngine.resolveVisibility(current, answers)
         val (root, content) = screen()
+        renderedVisibleQuestionIds = visibility.visibleQuestionIds
 
         val header = sectionCard(emphasis = true)
         header.addView(text("Adaptive Flow", 12, accentColor, Typeface.BOLD))
@@ -162,21 +183,84 @@ class MainActivity : Activity() {
 
         val footer = sectionCard(emphasis = true)
         val send = primaryButton("Send responses", "send-button")
-        send.isEnabled = visibility.sendEnabled
-        send.alpha = if (visibility.sendEnabled) 1f else .65f
-        send.background = roundedDrawable(
-            if (visibility.sendEnabled) accentColor else accentSoftColor,
-            accentColor,
-            20
-        )
-        send.setTextColor(if (visibility.sendEnabled) bgColor else subduedButtonTextColor)
-        send.setOnClickListener { Toast.makeText(this, "Survey submitted", Toast.LENGTH_SHORT).show() }
+        sendButtonRef = send
+        send.setOnClickListener {
+            val latestVisibility = resolveCurrentVisibility() ?: return@setOnClickListener
+            applySendState(latestVisibility)
+            if (latestVisibility.visibleQuestionIds != renderedVisibleQuestionIds) {
+                showSurvey()
+                return@setOnClickListener
+            }
+            if (!latestVisibility.sendEnabled) return@setOnClickListener
+            send.isEnabled = false
+            send.text = "Sending..."
+            submitSurvey(current, latestVisibility)
+        }
         footer.addView(send)
         footer.addView(space(12))
-        footer.addView(text("Visible path: ${visibility.visibleQuestionIds.joinToString(" -> ")}", 12, textSecondaryColor).also { it.contentDescription = "visible-path" })
+        val pathView = text("Visible path: ${visibility.visibleQuestionIds.joinToString(" -> ")}", 12, textSecondaryColor).also {
+            it.contentDescription = "visible-path"
+        }
+        visiblePathRef = pathView
+        footer.addView(pathView)
         content.addView(footer)
+        applySendState(visibility)
 
-        setContentView(root)
+        replaceContent(root)
+        if (pendingScrollToEnd) {
+            pendingScrollToEnd = false
+            root.post { root.fullScroll(View.FOCUS_DOWN) }
+        }
+    }
+
+    private fun showSubmissionSuccess(receipt: SubmissionReceipt) {
+        clearSurveyBindings()
+        val (root, content) = screen()
+
+        val hero = sectionCard(emphasis = true)
+        hero.background = roundedDrawable(successSoftColor, successColor, 28)
+        hero.addView(text("Submission complete", 12, successColor, Typeface.BOLD))
+        hero.addView(text("Responses sent", 32, textPrimaryColor, Typeface.BOLD).also { it.contentDescription = "submission-title" })
+        hero.addView(text("The adaptive response has been stored and marked as submitted for this session.", 15, textSecondaryColor).also { it.contentDescription = "submission-message" })
+        content.addView(hero)
+
+        val summary = sectionCard()
+        val statRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = matchWidth()
+        }
+        statRow.addView(pill("Submitted", successColor, successSoftColor, successColor))
+        statRow.addView(pill("${receipt.answeredCount} answers", accentColor, accentSoftColor, accentColor).apply { setMarginStart(dp(8)) })
+        statRow.addView(pill("${receipt.visibleStepCount} steps", accentColor, accentSoftColor, accentColor).apply { setMarginStart(dp(8)) })
+        summary.addView(statRow)
+        summary.addView(space(6))
+        summary.addView(text(receipt.surveyTitle, 22, textPrimaryColor, Typeface.BOLD))
+        summary.addView(summaryRow("Primary branch", receipt.branchLabel ?: "Adaptive path"))
+        summary.addView(summaryRow("Session", shortenSessionId(receipt.sessionId)).also { it.contentDescription = "submission-session" })
+        summary.addView(summaryRow("Submitted at", formatTimestamp(receipt.submittedAt)))
+        summary.addView(space(6))
+        summary.addView(text("Visible path", 12, textSecondaryColor, Typeface.BOLD))
+        summary.addView(text(receipt.path.joinToString(" -> "), 13, textSecondaryColor).also { it.contentDescription = "submission-path" })
+        content.addView(summary)
+
+        val actions = sectionCard()
+        actions.addView(text("Next actions", 18, textPrimaryColor, Typeface.BOLD))
+        actions.addView(text("You can immediately start a fresh response for the same survey or go back to the survey list.", 14, textSecondaryColor))
+        actions.addView(space(12))
+
+        val startAnother = primaryButton("Start another response", "submission-start-another")
+        startAnother.setOnClickListener { startSession(receipt.surveyId) }
+        val backToSurveys = secondaryButton("Back to surveys", "submission-back-to-surveys")
+        backToSurveys.setOnClickListener {
+            resetSessionState()
+            showSurveyList()
+        }
+        actions.addView(startAnother)
+        actions.addView(space(12))
+        actions.addView(backToSurveys)
+        content.addView(actions)
+
+        replaceContent(root)
     }
 
     private fun renderQuestion(parent: LinearLayout, question: SurveyQuestion, index: Int) {
@@ -262,7 +346,18 @@ class MainActivity : Activity() {
                     hint = "Share a few notes...",
                     multiline = true
                 )
-                input.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) setAnswer(question.id, input.text.toString()) }
+                input.addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+
+                    override fun afterTextChanged(s: Editable?) {
+                        previewTextAnswer(question.id, s?.toString() ?: "")
+                    }
+                })
+                input.setOnFocusChangeListener { _, hasFocus ->
+                    if (!hasFocus) commitTextAnswer(question.id, input.text.toString())
+                }
                 card.addView(input)
             }
         }
@@ -272,24 +367,70 @@ class MainActivity : Activity() {
 
     private fun setAnswer(id: String, value: Any?) {
         answers[id] = value
-        val current = schema ?: return
-        val visibility = RclrEngine.resolveVisibility(current, answers)
-        visibility.hiddenClearedAnswerIds.forEach { answers.remove(it) }
+        resolveCurrentVisibility() ?: return
         syncAnswers()
         showSurvey()
+    }
+
+    private fun previewTextAnswer(id: String, value: String) {
+        val visibility = updateDraftTextAnswer(id, value) ?: return
+        if (visibility.visibleQuestionIds != renderedVisibleQuestionIds) {
+            pendingScrollToEnd = visibility.visibleQuestionIds.size > renderedVisibleQuestionIds.size
+            showSurvey()
+            return
+        }
+        applySendState(visibility)
+    }
+
+    private fun commitTextAnswer(id: String, value: String) {
+        val visibility = updateDraftTextAnswer(id, value) ?: return
+        syncAnswers()
+        if (visibility.visibleQuestionIds != renderedVisibleQuestionIds) {
+            pendingScrollToEnd = visibility.visibleQuestionIds.size > renderedVisibleQuestionIds.size
+            showSurvey()
+            return
+        }
+        applySendState(visibility)
+    }
+
+    private fun updateDraftTextAnswer(id: String, value: String): VisibilityResult? {
+        answers[id] = value
+        return resolveCurrentVisibility()
+    }
+
+    private fun submitSurvey(current: SurveySchema, visibility: VisibilityResult) {
+        val sid = sessionId ?: return
+        val body = JSONObject()
+            .put("clientSchemaVersion", current.version)
+            .put("answers", serializeAnswers())
+
+        postJson("/api/sessions/$sid/submit", body) { result, error ->
+            if (error != null || result == null) {
+                conflictMessage = "SUBMIT_ERROR: ${extractErrorMessage(error)}"
+                showSurvey()
+                return@postJson
+            }
+
+            conflictMessage = null
+            val submittedSession = result.getJSONObject("session")
+            val receipt = SubmissionReceipt(
+                surveyId = current.id,
+                surveyTitle = current.title,
+                sessionId = submittedSession.getString("id"),
+                branchLabel = findOptionLabel(current, "q-channel", answers["q-channel"]?.toString()),
+                answeredCount = visibility.visibleQuestionIds.count { id -> RclrEngine.isAnswered(answers[id]) },
+                visibleStepCount = visibility.visibleQuestionIds.size,
+                submittedAt = submittedSession.getString("updatedAt"),
+                path = visibility.visibleQuestionIds
+            )
+            showSubmissionSuccess(receipt)
+        }
     }
 
     private fun syncAnswers() {
         val current = schema ?: return
         val sid = sessionId ?: return
-        val jsonAnswers = JSONObject()
-        answers.forEach { (key, value) ->
-            when (value) {
-                is List<*> -> jsonAnswers.put(key, JSONArray(value))
-                else -> jsonAnswers.put(key, value)
-            }
-        }
-        val body = JSONObject().put("clientSchemaVersion", current.version).put("answers", jsonAnswers)
+        val body = JSONObject().put("clientSchemaVersion", current.version).put("answers", serializeAnswers())
         postJson("/api/sessions/$sid/answers", body) { result, error ->
             if (error != null || result == null) return@postJson
             val resolution = result.getJSONObject("resolution")
@@ -309,14 +450,34 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun serializeAnswers(): JSONObject {
+        val jsonAnswers = JSONObject()
+        answers.forEach { (key, value) ->
+            when (value) {
+                is List<*> -> jsonAnswers.put(key, JSONArray(value))
+                else -> jsonAnswers.put(key, value)
+            }
+        }
+        return jsonAnswers
+    }
+
     private fun showConflict(message: String) {
         conflictMessage = message
+        clearSurveyBindings()
         val (root, content) = screen()
         val card = sectionCard()
         card.background = roundedDrawable(Color.parseColor("#2B1319"), dangerColor, 24)
         card.addView(text(message, 16, dangerColor, Typeface.BOLD).also { it.contentDescription = "conflict-banner" })
         content.addView(card)
-        setContentView(root)
+        replaceContent(root)
+    }
+
+    private fun resetSessionState() {
+        schema = null
+        sessionId = null
+        conflictMessage = null
+        answers.clear()
+        clearSurveyBindings()
     }
 
     private fun parseSchema(obj: JSONObject): SurveySchema {
@@ -371,6 +532,53 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    private fun extractErrorMessage(error: String?): String = try {
+        error?.let { JSONObject(it).optString("error", it) } ?: "Network error"
+    } catch (_: Exception) {
+        error ?: "Network error"
+    }
+
+    private fun replaceContent(view: View) {
+        currentFocus?.let { focused ->
+            (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
+                ?.hideSoftInputFromWindow(focused.windowToken, 0)
+            focused.clearFocus()
+        }
+        setContentView(view)
+    }
+
+    private fun resolveCurrentVisibility(): VisibilityResult? {
+        val current = schema ?: return null
+        val initial = RclrEngine.resolveVisibility(current, answers)
+        if (initial.hiddenClearedAnswerIds.isNotEmpty()) {
+            initial.hiddenClearedAnswerIds.forEach { answers.remove(it) }
+            return RclrEngine.resolveVisibility(current, answers)
+        }
+        return initial
+    }
+
+    private fun applySendState(visibility: VisibilityResult) {
+        sendButtonRef?.let { send ->
+            send.text = "Send responses"
+            send.isEnabled = visibility.sendEnabled
+            send.alpha = if (visibility.sendEnabled) 1f else .65f
+            send.background = roundedDrawable(
+                if (visibility.sendEnabled) accentColor else accentSoftColor,
+                accentColor,
+                20
+            )
+            send.setTextColor(if (visibility.sendEnabled) bgColor else subduedButtonTextColor)
+        }
+        visiblePathRef?.text = "Visible path: ${visibility.visibleQuestionIds.joinToString(" -> ")}"
+    }
+
+    private fun clearSurveyBindings() {
+        sendButtonRef = null
+        visiblePathRef = null
+        renderedVisibleQuestionIds = emptyList()
+        pendingScrollToEnd = false
+    }
+
     private fun screen(): Pair<ScrollView, LinearLayout> {
         val root = ScrollView(this).apply {
             isFillViewport = true
@@ -379,7 +587,7 @@ class MainActivity : Activity() {
         val content = column().apply {
             minimumHeight = resources.displayMetrics.heightPixels
             setPadding(dp(20), dp(20), dp(20), dp(28))
-            layoutParams = ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
         root.addView(content)
         return root to content
@@ -462,14 +670,23 @@ class MainActivity : Activity() {
         layoutParams = matchWidth()
     }
 
-    private fun metaChip(value: String) = TextView(this).apply {
+    private fun pill(value: String, textColor: Int, backgroundColor: Int, borderColor: Int) = TextView(this).apply {
         text = value
         textSize = 11f
-        setTextColor(accentColor)
+        setTextColor(textColor)
         setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD))
-        background = roundedDrawable(accentSoftColor, accentColor, 999)
+        background = roundedDrawable(backgroundColor, borderColor, 999)
         setPadding(dp(10), dp(6), dp(10), dp(6))
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun metaChip(value: String) = pill(value, accentColor, accentSoftColor, accentColor)
+
+    private fun summaryRow(label: String, value: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = matchWidth(bottomMargin = 10)
+        addView(text(label.uppercase(), 11, textSecondaryColor, Typeface.BOLD))
+        addView(text(value, 16, textPrimaryColor, Typeface.BOLD))
     }
 
     private fun roundedDrawable(fillColor: Int, borderColor: Int, radiusDp: Int) = GradientDrawable().apply {
@@ -502,6 +719,21 @@ class MainActivity : Activity() {
         "rating" -> "Rating"
         else -> "Comment"
     }
+
+    private fun findOptionLabel(schema: SurveySchema, questionId: String, selectedValue: String?): String? {
+        if (selectedValue == null) return null
+        return schema.questions
+            .find { it.id == questionId }
+            ?.options
+            ?.find { it.value == selectedValue }
+            ?.label
+    }
+
+    private fun shortenSessionId(value: String): String =
+        if (value.length <= 24) value else "${value.take(12)}...${value.takeLast(8)}"
+
+    private fun formatTimestamp(value: String): String =
+        value.replace('T', ' ').substringBefore('.').removeSuffix("Z")
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 }

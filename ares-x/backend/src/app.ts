@@ -153,6 +153,62 @@ export function createApp(store = new JsonStore(defaultStorePath())) {
     return res.json(payload);
   });
 
+  app.post('/api/sessions/:id/submit', (req, res) => {
+    const { answers = {}, clientSchemaVersion } = req.body as { answers: AnswerMap; clientSchemaVersion?: number };
+    const db = store.read();
+    const session = db.sessions.find((candidate) => candidate.id === req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const currentSchema = db.surveys.find((survey) => survey.id === session.surveyId);
+    if (!currentSchema) return res.status(404).json({ error: 'Survey not found' });
+
+    const clientVersion = clientSchemaVersion ?? session.schemaVersion;
+    if (clientVersion !== currentSchema.version) {
+      return res.status(409).json({
+        error: 'Schema changed before submit. Refresh the session and try again.',
+        resolution: { action: 'conflict', conflictCode: 'RCLR_CONFLICT' }
+      });
+    }
+
+    const preserved = sanitizeAnswersForSchema(currentSchema, answers);
+    const visibility = resolveVisibility(currentSchema, preserved);
+    if (!visibility.sendEnabled || visibility.orphanQuestionIds.length) {
+      return res.status(409).json({
+        error: 'Survey is not ready to submit.',
+        resolution: {
+          action: 'conflict',
+          conflictCode: 'RCLR_CONFLICT',
+          message: visibility.orphanQuestionIds.length
+            ? 'RCLR found an undefined UI state.'
+            : 'Required questions are still missing.',
+          preservedAnswers: preserved,
+          droppedAnswerIds: visibility.hiddenClearedAnswerIds,
+          rollbackStableNodeId: visibility.stableNodeId,
+          visibility
+        }
+      });
+    }
+
+    session.answers = preserved;
+    session.schemaVersion = currentSchema.version;
+    session.stableNodeId = visibility.stableNodeId;
+    session.status = 'submitted';
+    session.updatedAt = now();
+    store.write(db);
+
+    return res.json({
+      session,
+      schema: currentSchema,
+      resolution: {
+        action: 'ok',
+        message: 'Survey submitted.',
+        preservedAnswers: preserved,
+        droppedAnswerIds: visibility.hiddenClearedAnswerIds,
+        rollbackStableNodeId: visibility.stableNodeId,
+        visibility
+      }
+    });
+  });
+
   app.post('/api/test/reset', (_req, res) => {
     store.reset();
     res.json({ ok: true, db: store.read() });

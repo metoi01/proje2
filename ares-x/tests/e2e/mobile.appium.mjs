@@ -72,8 +72,19 @@ await withServers(async () => {
     await capture('07-send-button-activation.png', 'Send Button Activation Test', 'Visible required sorular tamamlandiginda Send butonunun aktif hale gelmesi.');
 
     await driver.tap('send-button');
-    await sleep(500);
-    await capture('08-end-to-end-completion.png', 'End-to-End Survey Completion Test', 'Survey baslatma-cevaplama-gonderme akisinin tamamlanmis hali.');
+    await sleep(1000);
+    assert.match(await driver.text('submission-title'), /responses sent/i);
+    assert.match(await driver.text('submission-session'), /sess-/i);
+    await capture('08-submission-confirmation.png', 'Submission Confirmation Test', 'Survey submit sonrasi onay ekrani ve takip aksiyonlari goruntusu.');
+
+    await driver.tap('submission-start-another');
+    await sleep(1500);
+    assert.match(await driver.text('schema-version'), /Schema v1/);
+
+    await driver.tap('answer-q-channel-mobile');
+    await sleep(1000);
+    await driver.tap('answer-q-mobile-rating-4');
+    await sleep(1000);
 
     await driver.tap('answer-q-channel-web');
     await sleep(1000);
@@ -82,6 +93,21 @@ await withServers(async () => {
     assert.doesNotMatch(webPath, /q-mobile-rating/);
     assert.equal(await driver.enabled('send-button'), false);
     await capture('09-back-navigation-logic.png', 'Back Navigation Logic Test', 'Kullanici onceki karari degistirdiginde conditional logicin yeniden hesaplanmasi.');
+
+    await driver.tap('answer-q-web-rating-2');
+    await sleep(1000);
+    await driver.type('answer-q-low-score-text', 'Blur olmadan kaydedilen yorum');
+    await sleep(600);
+    assert.equal(await driver.enabled('send-button'), true);
+    await capture('10-live-text-activation.png', 'Live Text Activation Test', 'Required text alanina yazarken focus kaybetmeden Send butonunun aktiflesmesi.');
+
+    await driver.tap('send-button');
+    await sleep(1000);
+    assert.match(await driver.text('submission-title'), /responses sent/i);
+    await capture('11-web-submission-confirmation.png', 'Web Path Submission Confirmation Test', 'Required text sorusu doldurulan web path submit sonrasi onay ekrani.');
+
+    await driver.tap('submission-start-another');
+    await sleep(1500);
 
     await fetch('http://localhost:3001/api/test/delete-node', {
       method: 'POST',
@@ -92,7 +118,7 @@ await withServers(async () => {
     await sleep(1500);
     assert.match(await driver.text('conflict-banner'), /RCLR_ROLLBACK|RCLR_CONFLICT/);
     assert.doesNotMatch(await driver.text('visible-path'), /undefined|zombie|orphan/i);
-    await capture('10-invalid-state-prevention.png', 'Invalid State Prevention Test', 'Schema degisimi sonrasinda undefined UI state yerine conflict/rollback davranisi.');
+    await capture('12-invalid-state-prevention.png', 'Invalid State Prevention Test', 'Schema degisimi sonrasinda undefined UI state yerine conflict/rollback davranisi.');
   } finally {
     if (evidenceDir) {
       fs.writeFileSync(

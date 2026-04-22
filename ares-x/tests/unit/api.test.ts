@@ -88,6 +88,28 @@ describe('ARES-X backend API', () => {
     expect(sync.body.session.answers).toEqual({ 'q-channel': 'mobile', 'q-mobile-rating': 5 });
   });
 
+  it('marks a completed session as submitted', async () => {
+    const app = testApp();
+    const session = await request(app).post('/api/sessions').send({ surveyId: 'customer-feedback', userId: 'u-alice' }).expect(201);
+
+    const submit = await request(app)
+      .post(`/api/sessions/${session.body.session.id}/submit`)
+      .send({
+        clientSchemaVersion: 1,
+        answers: {
+          'q-channel': 'mobile',
+          'q-mobile-rating': 4,
+          'q-mobile-pain': ['sync'],
+          'q-final': 'Looks much better now.'
+        }
+      })
+      .expect(200);
+
+    expect(submit.body.session.status).toBe('submitted');
+    expect(submit.body.resolution.message).toBe('Survey submitted.');
+    expect(submit.body.resolution.visibility.sendEnabled).toBe(true);
+  });
+
   it('returns atomic recovery instructions on compatible schema drift', async () => {
     const app = testApp();
     const session = await request(app).post('/api/sessions').send({ surveyId: 'customer-feedback', userId: 'u-alice' }).expect(201);
