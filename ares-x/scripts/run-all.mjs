@@ -66,6 +66,10 @@ function executableName(base) {
   return isWindows ? `${base}.exe` : base;
 }
 
+function projectBin(base) {
+  return path.join(projectRoot, 'node_modules', '.bin', commandName(base));
+}
+
 function pathCandidatesForCommand(name) {
   const hasExt = path.extname(name) !== '';
   const exts = isWindows
@@ -279,6 +283,16 @@ async function waitForHttp(url, timeoutMs) {
   return false;
 }
 
+async function assertRuntimeHealth(context) {
+  const stage = context ? ` after ${context}` : '';
+  if (!(await waitForHttp('http://127.0.0.1:3001/health', 5000))) {
+    fail(`Backend stopped responding${stage}.`);
+  }
+  if (!(await waitForHttp('http://127.0.0.1:5173', 5000))) {
+    fail(`Web app stopped responding${stage}.`);
+  }
+}
+
 function isPortBusy(port) {
   return new Promise((resolve) => {
     const socket = net.createConnection({ host: '127.0.0.1', port, timeout: 700 });
@@ -352,8 +366,8 @@ function ensureNpmDependencies() {
   prependPath(localBinDir);
   repairLocalBinPermissions(localBinDir);
 
-  const localVite = path.join(localBinDir, commandName('vite'));
-  const localTsx = path.join(localBinDir, commandName('tsx'));
+  const localVite = projectBin('vite');
+  const localTsx = projectBin('tsx');
   const viteCheck = exists(localVite) ? runCapture(localVite, ['--version']) : { ok: false };
   const tsxCheck = exists(localTsx) ? runCapture(localTsx, ['--version']) : { ok: false };
   if (!exists(path.join(projectRoot, 'node_modules')) || !viteCheck.ok || !tsxCheck.ok) {
@@ -364,6 +378,9 @@ function ensureNpmDependencies() {
   }
 
   repairLocalBinPermissions(localBinDir);
+  tools.vite = exists(localVite) ? localVite : null;
+  tools.tsx = exists(localTsx) ? localTsx : null;
+  tools.appium = exists(projectBin('appium')) ? projectBin('appium') : null;
 }
 
 function repairLocalBinPermissions(localBinDir) {
@@ -731,7 +748,12 @@ async function ensureAppium() {
     }
   }
 
-  spawnManaged('appium', npx, ['appium', '--address', '127.0.0.1', '--port', '4723', '--base-path', '/']);
+  const appium = tools.appium && exists(tools.appium) ? tools.appium : npx;
+  const appiumArgs = appium === npx
+    ? ['appium', '--address', '127.0.0.1', '--port', '4723', '--base-path', '/']
+    : ['--address', '127.0.0.1', '--port', '4723', '--base-path', '/'];
+
+  spawnManaged('appium', appium, appiumArgs);
   const ready = await waitForHttp('http://127.0.0.1:4723/status', 45000);
   if (!ready) warn('Appium did not report ready status yet; Android app can still run without it.');
 }
@@ -755,6 +777,8 @@ function repairAppiumDriverCache() {
 async function startBackendAndWeb() {
   section('Backend and web');
   const npm = tools.npm || commandName('npm');
+  const tsx = tools.tsx && exists(tools.tsx) ? tools.tsx : null;
+  const vite = tools.vite && exists(tools.vite) ? tools.vite : null;
 
   if (await isPortBusy(3001)) {
     if (await httpGet('http://127.0.0.1:3001/health')) {
@@ -763,7 +787,12 @@ async function startBackendAndWeb() {
       fail('Port 3001 is busy. Close the process using it, then run the launcher again.');
     }
   } else {
-    spawnManaged('backend', npm, ['run', 'dev:backend'], { env: { ...env, PORT: '3001' } });
+    spawnManaged(
+      'backend',
+      tsx || npm,
+      tsx ? ['backend/src/server.ts'] : ['run', 'dev:backend'],
+      { env: { ...env, PORT: '3001' } }
+    );
   }
 
   if (!(await waitForHttp('http://127.0.0.1:3001/health', 45000))) {
@@ -777,7 +806,7 @@ async function startBackendAndWeb() {
       fail('Port 5173 is busy. Close the process using it, then run the launcher again.');
     }
   } else {
-    spawnManaged('web', npm, ['run', 'dev:web'], { env });
+    spawnManaged('web', vite || npm, vite ? ['--host', '0.0.0.0'] : ['run', 'dev:web'], { env });
   }
 
   if (!(await waitForHttp('http://127.0.0.1:5173', 45000))) {
@@ -786,8 +815,11 @@ async function startBackendAndWeb() {
 }
 
 const tools = {
+  appium: null,
   npm: null,
   npx: null,
+  tsx: null,
+  vite: null,
   adb: null
 };
 
@@ -806,6 +838,7 @@ async function main() {
   await startBackendAndWeb();
   await ensureAppium();
   await buildAndRunAndroid();
+  await assertRuntimeHealth('Android launch');
   printUrls();
 
   process.stdin.resume();
