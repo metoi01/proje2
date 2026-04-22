@@ -38,6 +38,15 @@ $env:ANDROID_SDK_ROOT=$env:ANDROID_HOME
 
 ## Run Locally
 
+One-click launchers are available at the repository root:
+
+```text
+RUN_ARES_X_MAC.command
+RUN_ARES_X_WINDOWS.bat
+```
+
+Double-click the file for your operating system. The launcher installs/verifies npm packages, starts the backend and web architect, starts Appium when available, builds/installs/opens the Android app when the Android SDK/emulator or a device is available, and prints the local/LAN URLs. Closing that terminal window or pressing `Ctrl-C` stops the services opened by the launcher.
+
 Backend:
 
 ```powershell
