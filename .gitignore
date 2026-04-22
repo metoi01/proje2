@@ -56,3 +56,4 @@ __pycache__/
 
 # Runtime data generated from seed fixtures
 ares-x/backend/data/*.json
+Archive.zip
