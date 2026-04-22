@@ -138,15 +138,26 @@ async function runWithInput(command, commandArgs, input, options = {}) {
   const display = [quoteForDisplay(command), ...commandArgs.map(quoteForDisplay)].join(' ');
   log(`$ ${display}`);
   return new Promise((resolve, reject) => {
+    let timer = null;
     const child = spawn(command, commandArgs, {
       cwd: options.cwd || projectRoot,
       env: options.env || env,
       shell: isWindows,
       stdio: ['pipe', 'inherit', 'inherit']
     });
+    if (options.timeoutMs) {
+      timer = setTimeout(() => {
+        warn(`Timed out waiting for: ${display}`);
+        child.kill('SIGTERM');
+      }, options.timeoutMs);
+    }
     child.stdin.end(input);
-    child.on('error', reject);
+    child.on('error', (error) => {
+      if (timer) clearTimeout(timer);
+      reject(error);
+    });
     child.on('close', (code) => {
+      if (timer) clearTimeout(timer);
       if (code !== 0 && !options.allowFail) {
         reject(new Error(`Command failed: ${display}`));
       } else {
@@ -339,6 +350,7 @@ function ensureNpmDependencies() {
   tools.npx = npx;
   const localBinDir = path.join(projectRoot, 'node_modules', '.bin');
   prependPath(localBinDir);
+  repairLocalBinPermissions(localBinDir);
 
   const localVite = path.join(localBinDir, commandName('vite'));
   const localTsx = path.join(localBinDir, commandName('tsx'));
@@ -350,6 +362,31 @@ function ensureNpmDependencies() {
   } else {
     log('npm packages are already usable.');
   }
+
+  repairLocalBinPermissions(localBinDir);
+}
+
+function repairLocalBinPermissions(localBinDir) {
+  if (isWindows || !exists(localBinDir)) return;
+
+  let repaired = 0;
+  for (const entry of fs.readdirSync(localBinDir, { withFileTypes: true })) {
+    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+    if (entry.name.endsWith('.cmd') || entry.name.endsWith('.ps1')) continue;
+    const target = path.join(localBinDir, entry.name);
+    try {
+      const stat = fs.statSync(target);
+      const executable = (stat.mode & 0o111) !== 0;
+      if (!executable) {
+        fs.chmodSync(target, stat.mode | 0o755);
+        repaired += 1;
+      }
+    } catch {
+      // Ignore broken optional package links; npm will recreate them when needed.
+    }
+  }
+
+  if (repaired) log(`Fixed executable permission on ${repaired} npm bin file(s).`);
 }
 
 function detectAndroidStudioJbr() {
@@ -479,8 +516,13 @@ async function ensureAndroidSdk() {
   const sdkmanager = findAndroidTool(sdk, 'sdkmanager');
   if (sdkmanager && !noInstall) {
     log(`Using Android SDK: ${sdk}`);
-    await runWithInput(sdkmanager, ['--licenses'], 'y\n'.repeat(80), { allowFail: true });
-    await runWithInput(sdkmanager, ['platform-tools', 'emulator', 'platforms;android-35', 'build-tools;35.0.0'], 'y\n'.repeat(80), { allowFail: true });
+    await runWithInput(sdkmanager, ['--licenses'], 'y\n'.repeat(80), { allowFail: true, timeoutMs: 180000 });
+    await runWithInput(
+      sdkmanager,
+      ['platform-tools', 'emulator', 'platforms;android-35', 'build-tools;35.0.0'],
+      'y\n'.repeat(80),
+      { allowFail: true, timeoutMs: 300000 }
+    );
   } else {
     log(`Using Android SDK: ${sdk}`);
     if (!sdkmanager) warn('sdkmanager was not found; package auto-install is unavailable.');
@@ -561,7 +603,7 @@ async function createAvdIfNeeded(android) {
   const arch = isMac && process.arch === 'arm64' ? 'arm64-v8a' : 'x86_64';
   const image = `system-images;android-35;google_apis;${arch}`;
   log(`Preparing Android emulator image: ${image}`);
-  await runWithInput(android.sdkmanager, [image], 'y\n'.repeat(120), { allowFail: true });
+  await runWithInput(android.sdkmanager, [image], 'y\n'.repeat(120), { allowFail: true, timeoutMs: 600000 });
   await runWithInput(android.avdmanager, ['create', 'avd', '-n', 'ARES_X_API_35', '-k', image, '-d', 'pixel_6', '--force'], 'no\n', { allowFail: true });
   return true;
 }
@@ -673,6 +715,7 @@ async function ensureAppium() {
   }
 
   section('Appium');
+  repairAppiumDriverCache();
   if (await isPortBusy(4723)) {
     warn('Port 4723 is already in use; reusing the existing Appium service if it is Appium.');
     return;
@@ -691,6 +734,22 @@ async function ensureAppium() {
   spawnManaged('appium', npx, ['appium', '--address', '127.0.0.1', '--port', '4723', '--base-path', '/']);
   const ready = await waitForHttp('http://127.0.0.1:4723/status', 45000);
   if (!ready) warn('Appium did not report ready status yet; Android app can still run without it.');
+}
+
+function repairAppiumDriverCache() {
+  const cacheFile = path.join(projectRoot, 'node_modules', '.cache', 'appium', 'extensions.yaml');
+  const driverPath = path.join(projectRoot, 'node_modules', 'appium-uiautomator2-driver');
+  if (!exists(cacheFile) || !exists(driverPath)) return;
+
+  const content = fs.readFileSync(cacheFile, 'utf8');
+  if (!content.includes('appium-uiautomator2-driver')) return;
+
+  const normalizedDriverPath = isWindows ? driverPath.replace(/\//g, '\\') : driverPath;
+  const next = content.replace(/^(\s*installPath:\s*).+$/m, `$1${JSON.stringify(normalizedDriverPath)}`);
+  if (next !== content) {
+    fs.writeFileSync(cacheFile, next);
+    log(`Repaired Appium uiautomator2 driver path: ${normalizedDriverPath}`);
+  }
 }
 
 async function startBackendAndWeb() {
