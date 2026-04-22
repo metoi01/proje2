@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>appium-mobile.log</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        background: #0b1020;
+        color: #d6deff;
+        font: 15px/1.45 Menlo, Monaco, Consolas, monospace;
+      }
+      .frame {
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .bar {
+        margin-bottom: 14px;
+        color: #7bdff6;
+        font-weight: 700;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        border: 1px solid #21304f;
+        border-radius: 10px;
+        padding: 18px;
+        background: #0f172a;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="bar">appium-mobile.log</div>
+      <pre>Starting backend and web dev servers...
+[dev:backend] 
+&gt; ares-x@1.0.0 dev:backend
+&gt; tsx backend/src/server.ts
+
+[dev:web] 
+&gt; ares-x@1.0.0 dev:web
+&gt; vite --host 0.0.0.0
+
+[dev:web] 
+  VITE v6.4.2  ready in 200 ms
+
+[dev:web]   ➜  Local:   http://localhost:5173/
+  ➜  Network: http://172.20.10.2:5173/
+[dev:web]   ➜  Network: http://169.254.161.39:5173/
+[dev:backend] ARES-X backend listening on http://localhost:3001
+Servers are ready.
+Appium mobile logic suite passed.
+</pre>
+    </div>
+  </body>
+</html>

@@ -8,9 +8,16 @@ ARES-X is a CS458 Project 2 implementation with a responsive Web Architect, Expr
 - `shared/src`: TypeScript GBCR/RCLR logic and seeded fixtures.
 - `web/src`: React/Vite Survey Architect.
 - `mobile/app/src`: Native Android Kotlin app.
-- `tests/unit`: Vitest/Supertest tests.
-- `tests/e2e`: Selenium, Appium, and synchronized conflict automation.
+- `tests/unit`: Main TypeScript unit tests for GBCR/RCLR and backend API.
+- `tests/e2e`: Main Selenium/Appium automation tests required by the report.
+- `mobile/app/src/test`: Native Android unit tests for mobile-side RCLR visibility logic.
 - `docs`: UML diagrams, TDD log, screenshots, and report source/PDF.
+
+Test folder details are documented in:
+
+- `tests/README.md`
+- `tests/unit/README.md`
+- `tests/e2e/README.md`
 
 ## Test Accounts
 
@@ -76,7 +83,17 @@ Android:
 & "$env:USERPROFILE\.gradle\wrapper\dists\gradle-8.7-bin\bhs2wmbdwecv87pi65oeuq5iu\gradle-8.7\bin\gradle.bat" -p mobile assembleDebug "-Pkotlin.incremental=false" "-Dkotlin.compiler.execution.strategy=in-process" --no-daemon
 ```
 
-E2E:
+Required test code locations for submission:
+
+```text
+tests/unit/gbcr.test.ts
+tests/unit/api.test.ts
+tests/e2e/mobile.appium.mjs
+tests/e2e/sync-conflict.mjs
+mobile/app/src/test/java/edu/bilkent/aresx/RclrEngineTest.kt
+```
+
+Automation commands:
 
 ```powershell
 npm run test:e2e:web
@@ -85,6 +102,8 @@ npx appium --address 127.0.0.1 --port 4723 --base-path /
 npm run test:e2e:mobile
 npm run test:e2e:sync
 ```
+
+The `tests/e2e/mobile.appium.mjs` suite contains the required 10 Appium mobile cases. The special synchronized Selenium + Appium conflict scenario is `tests/e2e/sync-conflict.mjs`.
 
 ## LLM Disclosure
 

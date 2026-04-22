@@ -1,0 +1,12 @@
+[
+  {
+    "testName": "Sync-Conflict Test",
+    "purpose": "Backend schema degistiginde mobile clientin rollback/conflict ile stabil kalmasi.",
+    "screenshots": [
+      "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/sync-conflict/01-web-before-mutation.png",
+      "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/sync-conflict/02-mobile-before-conflict.png",
+      "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/sync-conflict/03-mobile-after-conflict.png",
+      "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/sync-conflict/04-web-after-mutation.png"
+    ]
+  }
+]

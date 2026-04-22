@@ -1,0 +1,52 @@
+[
+  {
+    "testName": "Survey Loading Test",
+    "purpose": "Mobil istemcinin survey semasini backendden yukledigi goruntu.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/01-survey-loading.png"
+  },
+  {
+    "testName": "Conditional Visibility Test",
+    "purpose": "q-channel=mobile secildiginde yalnizca mobile path sorularinin acildigi goruntu.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/02-conditional-visibility.png"
+  },
+  {
+    "testName": "Question Rendering Test",
+    "purpose": "Rating, multiple-choice ve open-ended soru tiplerinin ayni akista render edilmesi.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/03-question-rendering.png"
+  },
+  {
+    "testName": "DAG Path Validation Test",
+    "purpose": "Visible path ciktisinin DAG mantigina gore tekrarsiz ilerledigi kanit.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/04-dag-path-validation.png"
+  },
+  {
+    "testName": "Recursive Logic Execution Test",
+    "purpose": "Birden fazla conditional edge sonrasinda q-final dugumune kadar recursive ilerleyen path.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/05-recursive-logic.png"
+  },
+  {
+    "testName": "Answer Persistence Test",
+    "purpose": "Secilen multiple-choice cevabin yeniden render sonrasi korunmasi.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/06-answer-persistence.png"
+  },
+  {
+    "testName": "Send Button Activation Test",
+    "purpose": "Visible required sorular tamamlandiginda Send butonunun aktif hale gelmesi.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/07-send-button-activation.png"
+  },
+  {
+    "testName": "End-to-End Survey Completion Test",
+    "purpose": "Survey baslatma-cevaplama-gonderme akisinin tamamlanmis hali.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/08-end-to-end-completion.png"
+  },
+  {
+    "testName": "Back Navigation Logic Test",
+    "purpose": "Kullanici onceki karari degistirdiginde conditional logicin yeniden hesaplanmasi.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/09-back-navigation-logic.png"
+  },
+  {
+    "testName": "Invalid State Prevention Test",
+    "purpose": "Schema degisimi sonrasinda undefined UI state yerine conflict/rollback davranisi.",
+    "screenshot": "/Users/mertokhan/Downloads/proje2/ares-x/artifacts/test-evidence/2026-04-22-report/mobile-appium/10-invalid-state-prevention.png"
+  }
+]

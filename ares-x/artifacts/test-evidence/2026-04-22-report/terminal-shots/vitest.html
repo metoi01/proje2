@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>vitest.log</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        background: #0b1020;
+        color: #d6deff;
+        font: 15px/1.45 Menlo, Monaco, Consolas, monospace;
+      }
+      .frame {
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .bar {
+        margin-bottom: 14px;
+        color: #7bdff6;
+        font-weight: 700;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        border: 1px solid #21304f;
+        border-radius: 10px;
+        padding: 18px;
+        background: #0f172a;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="bar">vitest.log</div>
+      <pre>
+&gt; ares-x@1.0.0 test
+&gt; vitest run --config vitest.config.ts
+
+
+ RUN  v2.1.9 /Users/mertokhan/Downloads/proje2/ares-x
+
+ ✓ tests/unit/gbcr.test.ts (11 tests) 18ms
+ ✓ tests/unit/api.test.ts (8 tests) 89ms
+
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Start at  19:16:25
+   Duration  786ms (transform 113ms, setup 0ms, collect 312ms, tests 106ms, environment 0ms, prepare 183ms)
+
+</pre>
+    </div>
+  </body>
+</html>

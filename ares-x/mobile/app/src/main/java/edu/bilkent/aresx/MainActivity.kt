@@ -1,9 +1,15 @@
 package edu.bilkent.aresx
 
 import android.app.Activity
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -18,21 +24,40 @@ class MainActivity : Activity() {
     private val answers = linkedMapOf<String, Any?>()
     private var conflictMessage: String? = null
 
+    private val bgColor = Color.parseColor("#070B14")
+    private val surfaceColor = Color.parseColor("#0F1726")
+    private val surfaceRaisedColor = Color.parseColor("#151F32")
+    private val strokeColor = Color.parseColor("#20334B")
+    private val accentColor = Color.parseColor("#22D3EE")
+    private val accentSoftColor = Color.parseColor("#0F2E3B")
+    private val textPrimaryColor = Color.parseColor("#E8EEF9")
+    private val textSecondaryColor = Color.parseColor("#93A4BB")
+    private val warningColor = Color.parseColor("#FFB703")
+    private val dangerColor = Color.parseColor("#FF6B81")
+    private val subduedButtonTextColor = Color.parseColor("#6F859C")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = bgColor
+        window.navigationBarColor = bgColor
+        window.decorView.setBackgroundColor(bgColor)
         showLogin()
     }
 
     private fun showLogin() {
-        val root = column()
-        root.setPadding(36, 64, 36, 36)
-        root.addView(title("ARES.X", 36))
-        root.addView(text("Secure adaptive survey orchestration adapted from Project 1.", 15, "#8F98AD"))
+        val (root, content) = screen()
+
+        val hero = sectionCard(emphasis = true)
+        hero.addView(title("ARES.X", 34))
+        hero.addView(text("Secure adaptive survey orchestration adapted from Project 1.", 15, textSecondaryColor))
+        content.addView(hero)
+
+        val form = sectionCard()
         val email = edit("alice@ares.test", "login-email")
         val password = edit("Test1234!", "login-password")
-        password.inputType = 0x00000081
-        val status = text("", 14, "#FFB703").also { it.contentDescription = "login-error" }
-        val button = button("Sign In", "login-submit")
+        password.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        val status = text("", 14, warningColor).also { it.contentDescription = "login-error" }
+        val button = primaryButton("Sign in", "login-submit")
         button.setOnClickListener {
             status.text = "Signing in..."
             postJson("/api/auth/login", JSONObject().put("email", email.text.toString()).put("password", password.text.toString())) { result, error ->
@@ -44,35 +69,55 @@ class MainActivity : Activity() {
                 }
             }
         }
-        root.addView(label("Email"))
-        root.addView(email)
-        root.addView(label("Password"))
-        root.addView(password)
-        root.addView(text("Risk-aware login: local seeded account, secure session, deterministic automation.", 13, "#FFB703"))
-        root.addView(button)
-        root.addView(status)
+
+        form.addView(label("Email"))
+        form.addView(email)
+        form.addView(space(12))
+        form.addView(label("Password"))
+        form.addView(password)
+        form.addView(space(16))
+        form.addView(text("Risk-aware login: local seeded account, secure session, deterministic automation.", 13, warningColor))
+        form.addView(space(16))
+        form.addView(button)
+        form.addView(space(12))
+        form.addView(status)
+        content.addView(form)
+
         setContentView(root)
     }
 
     private fun showSurveyList() {
-        val root = column()
-        root.setPadding(28, 48, 28, 28)
-        root.addView(title("Available Surveys", 28))
+        val (root, content) = screen()
+
+        val hero = sectionCard(emphasis = true)
+        hero.addView(title("Available Surveys", 28))
+        hero.addView(text("Pick a survey to continue from the seeded mobile account.", 14, textSecondaryColor))
+        content.addView(hero)
+
+        val listCard = sectionCard()
+        listCard.addView(text("Loading surveys...", 14, textSecondaryColor))
+        content.addView(listCard)
+
         getJson("/api/surveys") { result, error ->
-            if (error != null) {
-                root.addView(text(error, 14, "#FF4D6D"))
-                return@getJson
-            }
-            val surveys = result!!.getJSONArray("surveys")
             runOnUiThread {
+                listCard.removeAllViews()
+                if (error != null) {
+                    listCard.addView(text(error, 14, dangerColor))
+                    return@runOnUiThread
+                }
+                val surveys = result!!.getJSONArray("surveys")
                 for (i in 0 until surveys.length()) {
                     val item = surveys.getJSONObject(i)
-                    val b = button("${item.getString("title")}  v${item.getInt("version")}", "survey-card-${item.getString("id")}")
+                    val b = secondaryButton("${item.getString("title")}  v${item.getInt("version")}", "survey-card-${item.getString("id")}")
                     b.setOnClickListener { startSession(item.getString("id")) }
-                    root.addView(b)
+                    listCard.addView(b)
+                    if (i < surveys.length() - 1) {
+                        listCard.addView(space(12))
+                    }
                 }
             }
         }
+
         setContentView(root)
     }
 
@@ -93,74 +138,136 @@ class MainActivity : Activity() {
     private fun showSurvey() {
         val current = schema ?: return
         val visibility = RclrEngine.resolveVisibility(current, answers)
-        val root = ScrollView(this)
-        val content = column()
-        content.setPadding(24, 40, 24, 28)
-        root.addView(content)
-        content.addView(title(current.title, 26))
-        content.addView(text("Schema v${current.version} / ${current.schemaHash}", 12, "#8F98AD").also { it.contentDescription = "schema-version" })
+        val (root, content) = screen()
+
+        val header = sectionCard(emphasis = true)
+        header.addView(text("Adaptive Flow", 12, accentColor, Typeface.BOLD))
+        header.addView(title(current.title, 24))
+        if (current.description.isNotBlank()) {
+            header.addView(text(current.description, 14, textSecondaryColor))
+        }
+        header.addView(metaChip("Schema v${current.version} / ${current.schemaHash}").also { it.contentDescription = "schema-version" })
+        content.addView(header)
+
         if (conflictMessage != null) {
-            content.addView(text(conflictMessage!!, 14, "#FFB703").also { it.contentDescription = "conflict-banner" })
+            val banner = sectionCard()
+            banner.background = roundedDrawable(Color.parseColor("#2A1D10"), warningColor, 24)
+            banner.addView(text(conflictMessage!!, 14, warningColor, Typeface.BOLD).also { it.contentDescription = "conflict-banner" })
+            content.addView(banner)
         }
-        current.questions.filter { it.id in visibility.visibleQuestionIds }.forEach { question ->
-            renderQuestion(content, question)
-        }
-        val send = button("Send", "send-button")
+
+        current.questions
+            .filter { it.id in visibility.visibleQuestionIds }
+            .forEachIndexed { index, question -> renderQuestion(content, question, index + 1) }
+
+        val footer = sectionCard(emphasis = true)
+        val send = primaryButton("Send responses", "send-button")
         send.isEnabled = visibility.sendEnabled
-        send.alpha = if (visibility.sendEnabled) 1f else .45f
+        send.alpha = if (visibility.sendEnabled) 1f else .65f
+        send.background = roundedDrawable(
+            if (visibility.sendEnabled) accentColor else accentSoftColor,
+            accentColor,
+            20
+        )
+        send.setTextColor(if (visibility.sendEnabled) bgColor else subduedButtonTextColor)
         send.setOnClickListener { Toast.makeText(this, "Survey submitted", Toast.LENGTH_SHORT).show() }
-        content.addView(send)
-        content.addView(text("Visible path: ${visibility.visibleQuestionIds.joinToString(" -> ")}", 12, "#8F98AD").also { it.contentDescription = "visible-path" })
+        footer.addView(send)
+        footer.addView(space(12))
+        footer.addView(text("Visible path: ${visibility.visibleQuestionIds.joinToString(" -> ")}", 12, textSecondaryColor).also { it.contentDescription = "visible-path" })
+        content.addView(footer)
+
         setContentView(root)
     }
 
-    private fun renderQuestion(parent: LinearLayout, question: SurveyQuestion) {
-        parent.addView(text(question.title, 17, "#E8EAF6").also { it.contentDescription = "question-${question.id}" })
+    private fun renderQuestion(parent: LinearLayout, question: SurveyQuestion, index: Int) {
+        val card = sectionCard()
+
+        val metaRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = matchWidth()
+        }
+        metaRow.addView(metaChip("Step $index"))
+        metaRow.addView(metaChip(questionTypeLabel(question.type)).apply { setMarginStart(dp(8)) })
+        if (question.required) {
+            metaRow.addView(metaChip("Required").apply { setMarginStart(dp(8)) })
+        }
+        card.addView(metaRow)
+        card.addView(text(question.title, 18, textPrimaryColor, Typeface.BOLD).also { it.contentDescription = "question-${question.id}" })
+
         when (question.type) {
             "single" -> {
-                val group = RadioGroup(this)
+                val group = RadioGroup(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = matchWidth()
+                }
                 question.options.forEach { option ->
-                    val rb = RadioButton(this)
-                    rb.text = option.label
-                    rb.setTextColor(Color.parseColor("#E8EAF6"))
-                    rb.contentDescription = "answer-${question.id}-${option.value}"
-                    rb.isChecked = answers[question.id] == option.value
-                    rb.setOnClickListener { setAnswer(question.id, option.value) }
+                    val rb = RadioButton(this).apply {
+                        text = option.label
+                        textSize = 16f
+                        setTextColor(textPrimaryColor)
+                        buttonTintList = ColorStateList.valueOf(accentColor)
+                        contentDescription = "answer-${question.id}-${option.value}"
+                        isChecked = answers[question.id] == option.value
+                        setPadding(0, dp(6), 0, dp(6))
+                        setOnClickListener { setAnswer(question.id, option.value) }
+                    }
                     group.addView(rb)
                 }
-                parent.addView(group)
+                card.addView(group)
             }
             "multiple" -> {
                 val selected = (answers[question.id] as? List<*>)?.map { it.toString() }?.toMutableSet() ?: mutableSetOf()
                 question.options.forEach { option ->
-                    val cb = CheckBox(this)
-                    cb.text = option.label
-                    cb.setTextColor(Color.parseColor("#E8EAF6"))
-                    cb.contentDescription = "answer-${question.id}-${option.value}"
-                    cb.isChecked = selected.contains(option.value)
-                    cb.setOnCheckedChangeListener { _, checked ->
-                        if (checked) selected.add(option.value) else selected.remove(option.value)
-                        setAnswer(question.id, selected.toList())
+                    val cb = CheckBox(this).apply {
+                        text = option.label
+                        textSize = 16f
+                        setTextColor(textPrimaryColor)
+                        buttonTintList = ColorStateList.valueOf(accentColor)
+                        contentDescription = "answer-${question.id}-${option.value}"
+                        isChecked = selected.contains(option.value)
+                        setPadding(0, dp(6), 0, dp(6))
+                        setOnCheckedChangeListener { _, checked ->
+                            if (checked) selected.add(option.value) else selected.remove(option.value)
+                            setAnswer(question.id, selected.toList())
+                        }
                     }
-                    parent.addView(cb)
+                    card.addView(cb)
                 }
             }
             "rating" -> {
-                val row = LinearLayout(this)
-                row.orientation = LinearLayout.HORIZONTAL
+                card.addView(text("Tap a score that best reflects the native mobile flow.", 13, textSecondaryColor))
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = matchWidth()
+                    gravity = Gravity.CENTER
+                }
+                val selectedScore = (answers[question.id] as? Number)?.toInt()
                 for (score in question.min..question.max) {
-                    val b = button(score.toString(), "answer-${question.id}-$score")
+                    val b = scoreButton(score.toString(), "answer-${question.id}-$score", selectedScore == score)
                     b.setOnClickListener { setAnswer(question.id, score) }
+                    b.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                        if (score > question.min) {
+                            marginStart = dp(8)
+                        }
+                    }
                     row.addView(b)
                 }
-                parent.addView(row)
+                card.addView(space(8))
+                card.addView(row)
             }
             else -> {
-                val input = edit(answers[question.id]?.toString() ?: "", "answer-${question.id}-text")
+                val input = edit(
+                    answers[question.id]?.toString() ?: "",
+                    "answer-${question.id}-text",
+                    hint = "Share a few notes...",
+                    multiline = true
+                )
                 input.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) setAnswer(question.id, input.text.toString()) }
-                parent.addView(input)
+                card.addView(input)
             }
         }
+
+        parent.addView(card)
     }
 
     private fun setAnswer(id: String, value: Any?) {
@@ -204,9 +311,11 @@ class MainActivity : Activity() {
 
     private fun showConflict(message: String) {
         conflictMessage = message
-        val root = column()
-        root.setPadding(28, 48, 28, 28)
-        root.addView(text(message, 16, "#FFB703").also { it.contentDescription = "conflict-banner" })
+        val (root, content) = screen()
+        val card = sectionCard()
+        card.background = roundedDrawable(Color.parseColor("#2B1319"), dangerColor, 24)
+        card.addView(text(message, 16, dangerColor, Typeface.BOLD).also { it.contentDescription = "conflict-banner" })
+        content.addView(card)
         setContentView(root)
     }
 
@@ -262,34 +371,137 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    private fun screen(): Pair<ScrollView, LinearLayout> {
+        val root = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(bgColor)
+        }
+        val content = column().apply {
+            minimumHeight = resources.displayMetrics.heightPixels
+            setPadding(dp(20), dp(20), dp(20), dp(28))
+            layoutParams = ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+        root.addView(content)
+        return root to content
+    }
+
     private fun column(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Color.parseColor("#0A0C12"))
+        setBackgroundColor(bgColor)
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
-    private fun title(value: String, size: Int) = text(value, size, "#00E5FF")
+    private fun sectionCard(emphasis: Boolean = false) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = roundedDrawable(if (emphasis) surfaceRaisedColor else surfaceColor, strokeColor, 24)
+        setPadding(dp(18), dp(18), dp(18), dp(18))
+        layoutParams = matchWidth(bottomMargin = 16)
+    }
 
-    private fun text(value: String, size: Int, color: String) = TextView(this).apply {
+    private fun title(value: String, size: Int) = text(value, size, accentColor, Typeface.BOLD)
+
+    private fun text(value: String, size: Int, color: Int, typeface: Int = Typeface.NORMAL) = TextView(this).apply {
         text = value
         textSize = size.toFloat()
-        setTextColor(Color.parseColor(color))
-        setPadding(0, 8, 0, 8)
+        setTextColor(color)
+        setTypeface(Typeface.create(Typeface.SANS_SERIF, typeface))
+        setLineSpacing(0f, 1.12f)
+        setPadding(0, dp(4), 0, dp(4))
     }
 
-    private fun label(value: String) = text(value.uppercase(), 12, "#8F98AD")
+    private fun label(value: String) = text(value.uppercase(), 12, textSecondaryColor, Typeface.BOLD)
 
-    private fun edit(value: String, desc: String) = EditText(this).apply {
+    private fun edit(value: String, desc: String, hint: String = "", multiline: Boolean = false) = EditText(this).apply {
         setText(value)
+        setHint(hint)
         contentDescription = desc
-        setTextColor(Color.parseColor("#E8EAF6"))
-        setHintTextColor(Color.parseColor("#8F98AD"))
-        setBackgroundColor(Color.parseColor("#111320"))
+        setTextColor(textPrimaryColor)
+        setHintTextColor(textSecondaryColor)
+        background = roundedDrawable(surfaceRaisedColor, strokeColor, 18)
+        inputType = if (multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE else InputType.TYPE_CLASS_TEXT
+        gravity = if (multiline) Gravity.TOP or Gravity.START else Gravity.CENTER_VERTICAL or Gravity.START
+        minHeight = dp(if (multiline) 124 else 56)
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutParams = matchWidth()
     }
 
-    private fun button(value: String, desc: String) = Button(this).apply {
+    private fun primaryButton(value: String, desc: String) = baseButton(
+        value = value,
+        desc = desc,
+        backgroundColor = accentColor,
+        textColor = bgColor,
+        borderColor = accentColor
+    )
+
+    private fun secondaryButton(value: String, desc: String) = baseButton(
+        value = value,
+        desc = desc,
+        backgroundColor = surfaceRaisedColor,
+        textColor = textPrimaryColor,
+        borderColor = strokeColor
+    )
+
+    private fun scoreButton(value: String, desc: String, selected: Boolean) = baseButton(
+        value = value,
+        desc = desc,
+        backgroundColor = if (selected) accentColor else accentSoftColor,
+        textColor = if (selected) bgColor else textPrimaryColor,
+        borderColor = accentColor
+    )
+
+    private fun baseButton(value: String, desc: String, backgroundColor: Int, textColor: Int, borderColor: Int) = Button(this).apply {
         text = value
         contentDescription = desc
-        setTextColor(Color.parseColor("#061016"))
-        setBackgroundColor(Color.parseColor("#00E5FF"))
+        textSize = 15f
+        isAllCaps = false
+        gravity = Gravity.CENTER
+        minHeight = dp(54)
+        setTextColor(textColor)
+        setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD))
+        background = roundedDrawable(backgroundColor, borderColor, 20)
+        layoutParams = matchWidth()
     }
+
+    private fun metaChip(value: String) = TextView(this).apply {
+        text = value
+        textSize = 11f
+        setTextColor(accentColor)
+        setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD))
+        background = roundedDrawable(accentSoftColor, accentColor, 999)
+        setPadding(dp(10), dp(6), dp(10), dp(6))
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun roundedDrawable(fillColor: Int, borderColor: Int, radiusDp: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(radiusDp).toFloat()
+        setColor(fillColor)
+        setStroke(dp(1), borderColor)
+    }
+
+    private fun space(heightDp: Int) = View(this).apply {
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(heightDp))
+    }
+
+    private fun matchWidth(bottomMargin: Int = 0) = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT
+    ).apply {
+        this.bottomMargin = dp(bottomMargin)
+    }
+
+    private fun View.setMarginStart(value: Int) {
+        val params = layoutParams as? ViewGroup.MarginLayoutParams ?: return
+        params.marginStart = value
+        layoutParams = params
+    }
+
+    private fun questionTypeLabel(type: String) = when (type) {
+        "single" -> "Single choice"
+        "multiple" -> "Multi select"
+        "rating" -> "Rating"
+        else -> "Comment"
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 }

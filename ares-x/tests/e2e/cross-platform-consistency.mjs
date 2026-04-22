@@ -25,6 +25,7 @@ await withServers(async () => {
     'appium:deviceName': process.env.APPIUM_DEVICE_NAME ?? 'Medium_Phone_API_35',
     'appium:app': path.resolve('mobile/app/build/outputs/apk/debug/app-debug.apk'),
     'appium:autoGrantPermissions': true,
+    'appium:adbExecTimeout': 60000,
     'appium:newCommandTimeout': 120
   });
 
