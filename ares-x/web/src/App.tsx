@@ -252,7 +252,7 @@ function EdgeEditor({ survey, onChange }: { survey: SurveySchema; onChange: (sch
       <div className="inline-form">
         <select data-testid="edge-from" value={from} onChange={(e) => setFrom(e.target.value)}>{survey.questions.map((q) => <option key={q.id}>{q.id}</option>)}</select>
         <select data-testid="edge-to" value={to} onChange={(e) => setTo(e.target.value)}>{survey.questions.map((q) => <option key={q.id}>{q.id}</option>)}</select>
-        <select value={kind} onChange={(e) => setKind(e.target.value as PredicateKind)}>
+        <select data-testid="edge-kind" value={kind} onChange={(e) => setKind(e.target.value as PredicateKind)}>
           <option value="answered">answered</option>
           <option value="not-answered">not-answered</option>
           <option value="equals">equals</option>

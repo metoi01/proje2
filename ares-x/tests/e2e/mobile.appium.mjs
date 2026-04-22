@@ -36,6 +36,8 @@ await withServers(async () => {
 
     // 4. invisible required questions do not block Send on mobile path
     assert.equal(await driver.enabled('send-button'), true);
+    await driver.tap('send-button');
+    await sleep(500);
 
     // 5. answer change hides invalid downstream questions and clears stale answers
     await driver.tap('answer-q-channel-web');

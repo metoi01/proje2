@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { Builder, By, until } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
+import chromedriver from 'chromedriver';
 import { createAppiumSession } from './_appium-client.mjs';
 import { withServers, sleep } from './_harness.mjs';
 
@@ -18,6 +19,7 @@ await withServers(async () => {
   const web = await new Builder()
     .forBrowser('chrome')
     .setChromeOptions(new chrome.Options().addArguments('--headless=new', '--window-size=1440,1000'))
+    .setChromeService(new chrome.ServiceBuilder(chromedriver.path))
     .build();
 
   try {

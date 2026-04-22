@@ -31,10 +31,30 @@ class RclrEngineTest {
     }
 
     @Test
+    fun validatesAcyclicConditionalGraphs() {
+        assertTrue(RclrEngine.validateDag(survey()))
+    }
+
+    @Test
+    fun rejectsCyclicConditionalGraphs() {
+        val cyclic = survey().copy(
+            edges = survey().edges + ConditionalEdge("e-cycle", "q-final", "q-channel", Predicate("answered", "q-final", null))
+        )
+        assertFalse(RclrEngine.validateDag(cyclic))
+    }
+
+    @Test
     fun sendButtonUnlocksAfterRequiredVisiblePathIsComplete() {
         val result = RclrEngine.resolveVisibility(survey(), mapOf("q-channel" to "mobile", "q-mobile-rating" to 4))
         assertTrue(result.sendEnabled)
         assertEquals("q-mobile-rating", result.stableNodeId)
+    }
+
+    @Test
+    fun conditionalPathDoesNotRenderUnselectedQuestions() {
+        val result = RclrEngine.resolveVisibility(survey(), mapOf("q-channel" to "web"))
+        assertEquals(listOf("q-channel"), result.visibleQuestionIds)
+        assertEquals("q-channel", result.stableNodeId)
     }
 
     @Test

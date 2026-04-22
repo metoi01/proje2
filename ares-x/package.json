@@ -12,6 +12,7 @@
     "build:web": "vite build",
     "test:e2e:web": "node tests/e2e/web-architect.selenium.mjs",
     "test:e2e:mobile": "node tests/e2e/mobile.appium.mjs",
+    "test:e2e:cross-platform": "node tests/e2e/cross-platform-consistency.mjs",
     "test:e2e:sync": "node tests/e2e/sync-conflict.mjs",
     "docs:screenshots": "node docs/capture-screenshots.mjs",
     "docs:report": "node docs/generate-report.mjs"
@@ -33,6 +34,7 @@
     "@types/supertest": "^6.0.2",
     "appium": "^2.12.1",
     "appium-uiautomator2-driver": "^4.2.9",
+    "chromedriver": "^147.0.4",
     "selenium-webdriver": "^4.27.0",
     "supertest": "^7.0.0",
     "typescript": "^5.7.2",
