@@ -59,6 +59,22 @@ export function buildSeedSurvey(version = 1): SurveySchema {
         max: 5
       },
       {
+        id: 'q-support-rating',
+        type: 'rating',
+        title: 'Rate your support desk experience.',
+        required: true,
+        stable: true,
+        min: 1,
+        max: 5
+      },
+      {
+        id: 'q-support-feedback',
+        type: 'text',
+        title: 'Describe the support interaction.',
+        required: true,
+        stable: false
+      },
+      {
         id: 'q-low-score',
         type: 'text',
         title: 'Tell us what made the score low.',
@@ -76,10 +92,13 @@ export function buildSeedSurvey(version = 1): SurveySchema {
     edges: [
       { id: 'e-channel-mobile', from: 'q-channel', to: 'q-mobile-rating', predicate: { kind: 'equals', questionId: 'q-channel', value: 'mobile' } },
       { id: 'e-channel-web', from: 'q-channel', to: 'q-web-rating', predicate: { kind: 'equals', questionId: 'q-channel', value: 'web' } },
+      { id: 'e-channel-support', from: 'q-channel', to: 'q-support-rating', predicate: { kind: 'equals', questionId: 'q-channel', value: 'support' } },
       { id: 'e-mobile-low', from: 'q-mobile-rating', to: 'q-mobile-pain', predicate: { kind: 'rating-at-least', questionId: 'q-mobile-rating', value: 1 } },
       { id: 'e-web-low', from: 'q-web-rating', to: 'q-low-score', predicate: { kind: 'rating-at-least', questionId: 'q-web-rating', value: 1 } },
+      { id: 'e-support-feedback', from: 'q-support-rating', to: 'q-support-feedback', predicate: { kind: 'rating-at-least', questionId: 'q-support-rating', value: 1 } },
       { id: 'e-mobile-final', from: 'q-mobile-rating', to: 'q-final', predicate: { kind: 'answered', questionId: 'q-mobile-rating' } },
-      { id: 'e-web-final', from: 'q-low-score', to: 'q-final', predicate: { kind: 'answered', questionId: 'q-low-score' } }
+      { id: 'e-web-final', from: 'q-low-score', to: 'q-final', predicate: { kind: 'answered', questionId: 'q-low-score' } },
+      { id: 'e-support-final', from: 'q-support-feedback', to: 'q-final', predicate: { kind: 'answered', questionId: 'q-support-feedback' } }
     ]
   };
   return { ...schema, schemaHash: computeSchemaHash(schema) };

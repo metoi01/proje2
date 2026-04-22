@@ -40,6 +40,7 @@ describe('ARES-X backend API', () => {
 
     expect(response.body.validation.valid).toBe(true);
     expect(response.body.survey.edges.some((edge: { id: string }) => edge.id === 'e-channel-mobile')).toBe(true);
+    expect(response.body.survey.edges.some((edge: { id: string }) => edge.id === 'e-channel-support')).toBe(true);
   });
 
   it('blocks publish when a schema update introduces a cycle', async () => {
@@ -107,6 +108,29 @@ describe('ARES-X backend API', () => {
 
     expect(submit.body.session.status).toBe('submitted');
     expect(submit.body.resolution.message).toBe('Survey submitted.');
+    expect(submit.body.resolution.visibility.sendEnabled).toBe(true);
+  });
+
+  it('submits successfully through the support desk branch', async () => {
+    const app = testApp();
+    const session = await request(app).post('/api/sessions').send({ surveyId: 'customer-feedback', userId: 'u-alice' }).expect(201);
+
+    const submit = await request(app)
+      .post(`/api/sessions/${session.body.session.id}/submit`)
+      .send({
+        clientSchemaVersion: 1,
+        answers: {
+          'q-channel': 'support',
+          'q-support-rating': 3,
+          'q-support-feedback': 'Agent was helpful but slow.'
+        }
+      })
+      .expect(200);
+
+    expect(submit.body.session.status).toBe('submitted');
+    expect(submit.body.resolution.message).toBe('Survey submitted.');
+    expect(submit.body.resolution.visibility.visibleQuestionIds).toContain('q-support-rating');
+    expect(submit.body.resolution.visibility.visibleQuestionIds).toContain('q-support-feedback');
     expect(submit.body.resolution.visibility.sendEnabled).toBe(true);
   });
 

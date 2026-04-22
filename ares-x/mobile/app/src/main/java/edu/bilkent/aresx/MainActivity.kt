@@ -312,7 +312,7 @@ class MainActivity : Activity() {
                         setPadding(0, dp(6), 0, dp(6))
                         setOnCheckedChangeListener { _, checked ->
                             if (checked) selected.add(option.value) else selected.remove(option.value)
-                            setAnswer(question.id, selected.toList())
+                            setMultiAnswer(question.id, selected.toList())
                         }
                     }
                     card.addView(cb)
@@ -370,6 +370,19 @@ class MainActivity : Activity() {
         resolveCurrentVisibility() ?: return
         syncAnswers()
         showSurvey()
+    }
+
+    /** Multi-select (checkbox) changes: don't rebuild the UI unless the visible path changes. */
+    private fun setMultiAnswer(id: String, value: List<String>) {
+        answers[id] = value
+        val visibility = resolveCurrentVisibility() ?: return
+        if (visibility.visibleQuestionIds != renderedVisibleQuestionIds) {
+            syncAnswers()
+            showSurvey()
+            return
+        }
+        applySendState(visibility)
+        syncAnswers()
     }
 
     private fun previewTextAnswer(id: String, value: String) {

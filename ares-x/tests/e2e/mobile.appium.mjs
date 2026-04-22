@@ -109,6 +109,31 @@ await withServers(async () => {
     await driver.tap('submission-start-another');
     await sleep(1500);
 
+    // === Support desk branch test ===
+    await driver.tap('answer-q-channel-support');
+    await sleep(1000);
+    const supportPath = await driver.text('visible-path');
+    assert.match(supportPath, /q-support-rating/);
+    assert.doesNotMatch(supportPath, /q-mobile-rating/);
+    assert.doesNotMatch(supportPath, /q-web-rating/);
+    assert.equal(await driver.enabled('send-button'), false);
+    await capture('12-support-branch-visible.png', 'Support Branch Visibility Test', 'Support desk secildiginde support path sorularinin gorunur olmasi.');
+
+    await driver.tap('answer-q-support-rating-3');
+    await sleep(1000);
+    assert.match(await driver.text('visible-path'), /q-support-feedback/);
+    await driver.type('answer-q-support-feedback-text', 'Support interaction was good');
+    await sleep(600);
+    assert.equal(await driver.enabled('send-button'), true);
+
+    await driver.tap('send-button');
+    await sleep(1000);
+    assert.match(await driver.text('submission-title'), /responses sent/i);
+    await capture('13-support-submission-confirmation.png', 'Support Path Submission Test', 'Support desk path submit sonrasi onay ekrani.');
+
+    await driver.tap('submission-start-another');
+    await sleep(1500);
+
     await fetch('http://localhost:3001/api/test/delete-node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -118,7 +143,7 @@ await withServers(async () => {
     await sleep(1500);
     assert.match(await driver.text('conflict-banner'), /RCLR_ROLLBACK|RCLR_CONFLICT/);
     assert.doesNotMatch(await driver.text('visible-path'), /undefined|zombie|orphan/i);
-    await capture('12-invalid-state-prevention.png', 'Invalid State Prevention Test', 'Schema degisimi sonrasinda undefined UI state yerine conflict/rollback davranisi.');
+    await capture('14-invalid-state-prevention.png', 'Invalid State Prevention Test', 'Schema degisimi sonrasinda undefined UI state yerine conflict/rollback davranisi.');
   } finally {
     if (evidenceDir) {
       fs.writeFileSync(
