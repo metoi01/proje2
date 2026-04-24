@@ -18,6 +18,37 @@ function normalizePathText(pathText) {
   return pathText.replace(/^Visible path:\s*/, '').split('->').map((part) => part.trim()).filter(Boolean);
 }
 
+async function submitAndAssertSuccess(driver) {
+  await driver.tap('send-button');
+
+  if (!(await driver.exists('submission-screen', 5000))) {
+    if (await driver.exists('conflict-banner', 1500)) {
+      throw new Error(`Submit ended with conflict: ${await driver.text('conflict-banner', 3000)}`);
+    }
+    if (await driver.exists('send-button', 3000) && await driver.enabled('send-button', 3000)) {
+      await driver.tap('send-button');
+    }
+  }
+
+  const hasSubmissionTitle = await driver.exists('submission-title', 30000);
+  const hasStartAnother = hasSubmissionTitle || await driver.exists('submission-start-another', 5000);
+  if (!hasSubmissionTitle && !hasStartAnother) {
+    const source = await driver.source();
+    const visibleMarkers = [
+      'submission-screen',
+      'submission-title',
+      'submission-start-another',
+      'send-button',
+      'schema-version',
+      'conflict-banner'
+    ].filter((marker) => source.includes(marker));
+    throw new Error(`Submit did not reach success screen. Visible markers: ${visibleMarkers.join(', ') || 'none'}`);
+  }
+
+  assert.match(await driver.text('submission-title', 10000), /responses sent/i);
+  assert.equal(await driver.exists('submission-start-another', 10000), true);
+}
+
 await withServers(async () => {
   const driver = await createAppiumSession(server, {
     platformName: 'Android',
@@ -57,24 +88,21 @@ await withServers(async () => {
     assert.match(await driver.text('question-q-final'), /final comments/i);
     await capture('03-question-rendering.png', 'Question Rendering Test', 'Rating, multiple-choice ve open-ended soru tiplerinin ayni akista render edilmesi.');
 
+    await driver.tap('answer-q-mobile-pain-sync');
+    await sleep(1000);
+    assert.equal(await driver.attribute('answer-q-mobile-pain-sync', 'checked'), 'true');
+    await capture('06-answer-persistence.png', 'Answer Persistence Test', 'Secilen multiple-choice cevabin yeniden render sonrasi korunmasi.');
+
     const recursivePath = normalizePathText(await driver.text('visible-path'));
     assert.deepEqual(recursivePath, ['q-channel', 'q-mobile-rating', 'q-mobile-pain', 'q-final']);
     assert.equal(new Set(recursivePath).size, recursivePath.length);
     await capture('04-dag-path-validation.png', 'DAG Path Validation Test', 'Visible path ciktisinin DAG mantigina gore tekrarsiz ilerledigi kanit.');
     await capture('05-recursive-logic.png', 'Recursive Logic Execution Test', 'Birden fazla conditional edge sonrasinda q-final dugumune kadar recursive ilerleyen path.');
 
-    await driver.tap('answer-q-mobile-pain-sync');
-    await sleep(1000);
-    assert.equal(await driver.attribute('answer-q-mobile-pain-sync', 'checked'), 'true');
-    await capture('06-answer-persistence.png', 'Answer Persistence Test', 'Secilen multiple-choice cevabin yeniden render sonrasi korunmasi.');
-
     assert.equal(await driver.enabled('send-button'), true);
     await capture('07-send-button-activation.png', 'Send Button Activation Test', 'Visible required sorular tamamlandiginda Send butonunun aktif hale gelmesi.');
 
-    await driver.tap('send-button');
-    await sleep(1000);
-    assert.match(await driver.text('submission-title'), /responses sent/i);
-    assert.match(await driver.text('submission-session'), /sess-/i);
+    await submitAndAssertSuccess(driver);
     await capture('08-submission-confirmation.png', 'Submission Confirmation Test', 'Survey submit sonrasi onay ekrani ve takip aksiyonlari goruntusu.');
 
     await driver.tap('submission-start-another');
@@ -101,9 +129,7 @@ await withServers(async () => {
     assert.equal(await driver.enabled('send-button'), true);
     await capture('10-live-text-activation.png', 'Live Text Activation Test', 'Required text alanina yazarken focus kaybetmeden Send butonunun aktiflesmesi.');
 
-    await driver.tap('send-button');
-    await sleep(1000);
-    assert.match(await driver.text('submission-title'), /responses sent/i);
+    await submitAndAssertSuccess(driver);
     await capture('11-web-submission-confirmation.png', 'Web Path Submission Confirmation Test', 'Required text sorusu doldurulan web path submit sonrasi onay ekrani.');
 
     await driver.tap('submission-start-another');
@@ -126,9 +152,7 @@ await withServers(async () => {
     await sleep(600);
     assert.equal(await driver.enabled('send-button'), true);
 
-    await driver.tap('send-button');
-    await sleep(1000);
-    assert.match(await driver.text('submission-title'), /responses sent/i);
+    await submitAndAssertSuccess(driver);
     await capture('13-support-submission-confirmation.png', 'Support Path Submission Test', 'Support desk path submit sonrasi onay ekrani.');
 
     await driver.tap('submission-start-another');

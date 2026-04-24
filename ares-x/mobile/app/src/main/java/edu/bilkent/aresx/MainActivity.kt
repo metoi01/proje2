@@ -216,6 +216,7 @@ class MainActivity : Activity() {
     private fun showSubmissionSuccess(receipt: SubmissionReceipt) {
         clearSurveyBindings()
         val (root, content) = screen()
+        content.contentDescription = "submission-screen"
 
         val hero = sectionCard(emphasis = true)
         hero.background = roundedDrawable(successSoftColor, successColor, 28)

@@ -54,6 +54,14 @@ RUN_ARES_X_WINDOWS.bat
 
 Double-click the file for your operating system. The launcher installs/verifies npm packages, starts the backend and web architect, starts Appium when available, builds/installs/opens the Android app when the Android SDK/emulator or a device is available, and prints the local/LAN URLs. Closing that terminal window or pressing `Ctrl-C` stops the services opened by the launcher.
 
+To run the full `tests/` suite from the macOS launcher with live terminal output:
+
+```bash
+./RUN_ARES_X_MAC.command test
+```
+
+This mode runs the unit suite plus every top-level `.mjs` test under `tests/e2e/`, then prints a PASS/FAIL summary at the end.
+
 Backend:
 
 ```powershell

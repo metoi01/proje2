@@ -25,21 +25,28 @@ let launchedEmulatorSerial = null;
 
 const args = new Set(process.argv.slice(2));
 const checkOnly = args.has('--check') || args.has('--dry-run');
+const runTestsMode = args.has('--run-tests') || args.has('--test') || args.has('--tests');
+const verboseTestOutput = args.has('--verbose') || env.ARES_X_TEST_VERBOSE === '1';
 const noInstall = args.has('--no-install') || env.ARES_X_NO_INSTALL === '1';
 const skipAndroid = args.has('--skip-android') || env.ARES_X_SKIP_ANDROID === '1';
 const skipAppium = args.has('--skip-appium') || env.ARES_X_SKIP_APPIUM === '1';
+let suppressRoutineLogs = false;
+let activeQuietLogFile = null;
+let currentTestRunDir = null;
 
-function log(message = '') {
+function log(message = '', options = {}) {
+  if (suppressRoutineLogs && !options.force) return;
   console.log(message);
 }
 
-function section(title) {
-  log('');
-  log(`== ${title} ==`);
+function section(title, options = {}) {
+  if (suppressRoutineLogs && !options.force) return;
+  log('', options);
+  log(`== ${title} ==`, options);
 }
 
-function warn(message) {
-  log(`[warn] ${message}`);
+function warn(message, options = {}) {
+  log(`[warn] ${message}`, options);
 }
 
 function fail(message) {
@@ -52,6 +59,16 @@ function exists(target) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function ensureDir(target) {
+  fs.mkdirSync(target, { recursive: true });
+}
+
+function appendToActiveLog(message = '') {
+  if (!activeQuietLogFile) return;
+  ensureDir(path.dirname(activeQuietLogFile));
+  fs.appendFileSync(activeQuietLogFile, message, 'utf8');
 }
 
 function quoteForDisplay(value) {
@@ -123,15 +140,25 @@ function runCapture(command, commandArgs = [], options = {}) {
 
 function run(command, commandArgs = [], options = {}) {
   const display = [quoteForDisplay(command), ...commandArgs.map(quoteForDisplay)].join(' ');
-  log(`$ ${display}`);
+  const quiet = options.quiet ?? suppressRoutineLogs;
+  const shouldCapture = Boolean(options.capture || quiet || options.logFile);
+  if (!quiet) log(`$ ${display}`);
   const result = spawnSync(command, commandArgs, {
     cwd: options.cwd || projectRoot,
     env: options.env || env,
-    stdio: options.capture ? 'pipe' : 'inherit',
-    encoding: options.capture ? 'utf8' : undefined,
+    stdio: shouldCapture ? 'pipe' : 'inherit',
+    encoding: shouldCapture ? 'utf8' : undefined,
     shell: isWindows,
     maxBuffer: 1024 * 1024 * 20
   });
+  if (shouldCapture) {
+    const output = [`$ ${display}`, result.stdout || '', result.stderr || ''].filter(Boolean).join('\n');
+    const logFile = options.logFile || activeQuietLogFile;
+    if (logFile) {
+      ensureDir(path.dirname(logFile));
+      fs.appendFileSync(logFile, `${output}\n`, 'utf8');
+    }
+  }
   if (result.status !== 0 && !options.allowFail) {
     fail(`Command failed: ${display}`);
   }
@@ -140,15 +167,27 @@ function run(command, commandArgs = [], options = {}) {
 
 async function runWithInput(command, commandArgs, input, options = {}) {
   const display = [quoteForDisplay(command), ...commandArgs.map(quoteForDisplay)].join(' ');
-  log(`$ ${display}`);
+  const quiet = options.quiet ?? suppressRoutineLogs;
+  const captureOutput = Boolean(quiet || options.logFile);
+  if (!quiet) log(`$ ${display}`);
   return new Promise((resolve, reject) => {
     let timer = null;
+    let stdout = '';
+    let stderr = '';
     const child = spawn(command, commandArgs, {
       cwd: options.cwd || projectRoot,
       env: options.env || env,
       shell: isWindows,
-      stdio: ['pipe', 'inherit', 'inherit']
+      stdio: captureOutput ? ['pipe', 'pipe', 'pipe'] : ['pipe', 'inherit', 'inherit']
     });
+    if (captureOutput) {
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+    }
     if (options.timeoutMs) {
       timer = setTimeout(() => {
         warn(`Timed out waiting for: ${display}`);
@@ -162,10 +201,18 @@ async function runWithInput(command, commandArgs, input, options = {}) {
     });
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);
+      if (captureOutput) {
+        const output = [`$ ${display}`, stdout, stderr].filter(Boolean).join('\n');
+        const logFile = options.logFile || activeQuietLogFile;
+        if (logFile) {
+          ensureDir(path.dirname(logFile));
+          fs.appendFileSync(logFile, `${output}\n`, 'utf8');
+        }
+      }
       if (code !== 0 && !options.allowFail) {
         reject(new Error(`Command failed: ${display}`));
       } else {
-        resolve(code);
+        resolve({ status: code, stdout, stderr });
       }
     });
   });
@@ -180,11 +227,15 @@ function pipeOutput(label, stream) {
     for (const line of lines) {
       if (!line.trim()) continue;
       if (shouldSuppressManagedLine(label, line)) continue;
+      appendToActiveLog(`[${label}] ${line}\n`);
       log(`[${label}] ${line}`);
     }
   });
   stream.on('end', () => {
-    if (buffer.trim() && !shouldSuppressManagedLine(label, buffer)) log(`[${label}] ${buffer}`);
+    if (buffer.trim() && !shouldSuppressManagedLine(label, buffer)) {
+      appendToActiveLog(`[${label}] ${buffer}\n`);
+      log(`[${label}] ${buffer}`);
+    }
   });
 }
 
@@ -339,6 +390,272 @@ function printUrls() {
   log('Press Ctrl-C or close this terminal to stop everything this launcher opened.');
 }
 
+function formatDuration(ms) {
+  const seconds = Math.round(ms / 100) / 10;
+  return `${seconds.toFixed(1)}s`;
+}
+
+function timestampTag() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+function sanitizeFilePart(value) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '_');
+}
+
+function stripAnsi(text) {
+  return text.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '');
+}
+
+function decodeJsonStringLiteral(value) {
+  try {
+    return JSON.parse(`"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
+  } catch {
+    return value.replace(/\\n/g, ' ').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+}
+
+function extractFailureReason(output) {
+  const clean = stripAnsi(output || '');
+  const jsonMessageMatches = [...clean.matchAll(/"message":"((?:\\.|[^"])*)"/g)];
+  if (jsonMessageMatches.length) {
+    const message = decodeJsonStringLiteral(jsonMessageMatches.at(-1)[1]).trim();
+    if (message) return message;
+  }
+
+  const assertionLine = clean.match(/AssertionError(?: \[[^\]]+\])?: ([^\n]+)/);
+  if (assertionLine && assertionLine[1] && assertionLine[1] !== 'Expected values to be strictly equal:') {
+    return assertionLine[1].trim();
+  }
+
+  if (clean.includes('Expected values to be strictly equal')) {
+    const equalDiff = clean.match(/'([^']*)'\s*!==\s*'([^']*)'/);
+    if (equalDiff) {
+      return `Assertion failed: expected '${equalDiff[2]}' but got '${equalDiff[1]}'`;
+    }
+    return 'Assertion failed: expected values to be strictly equal';
+  }
+
+  const errorLine = clean
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('Error: '));
+  if (errorLine) return errorLine.replace(/^Error:\s*/, '').trim();
+
+  const tail = clean
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1);
+  return tail || 'Unknown failure';
+}
+
+function listFilesRecursive(rootDir, predicate) {
+  if (!exists(rootDir)) return [];
+
+  const files = [];
+
+  function visit(currentDir) {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+        continue;
+      }
+      if (entry.isFile() && predicate(entry.name, fullPath)) {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  visit(rootDir);
+  return files.sort((left, right) => left.localeCompare(right));
+}
+
+function toProjectRelative(target) {
+  return path.relative(projectRoot, target).split(path.sep).join('/');
+}
+
+function discoverUnitSuites() {
+  const unitDir = path.join(projectRoot, 'tests', 'unit');
+  const vitest = tools.vitest && exists(tools.vitest) ? tools.vitest : null;
+  const npx = tools.npx || commandName('npx');
+
+  return listFilesRecursive(unitDir, (name) => name.endsWith('.test.ts')).map((filePath) => {
+    const relativePath = toProjectRelative(filePath);
+    return {
+      id: relativePath,
+      name: relativePath,
+      command: vitest || npx,
+      args: vitest
+        ? ['run', '--config', 'vitest.config.ts', relativePath]
+        : ['vitest', 'run', '--config', 'vitest.config.ts', relativePath]
+    };
+  });
+}
+
+function discoverE2eSuites() {
+  const e2eDir = path.join(projectRoot, 'tests', 'e2e');
+  if (!exists(e2eDir)) return [];
+  const preferredOrder = [
+    'mobile.appium.mjs',
+    'cross-platform-consistency.mjs',
+    'sync-conflict.mjs',
+    'web-architect.selenium.mjs'
+  ];
+  const rank = new Map(preferredOrder.map((name, index) => [name, index]));
+  return fs.readdirSync(e2eDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => name.endsWith('.mjs') && !name.startsWith('_'))
+    .sort((left, right) => {
+      const leftRank = rank.has(left) ? rank.get(left) : Number.MAX_SAFE_INTEGER;
+      const rightRank = rank.has(right) ? rank.get(right) : Number.MAX_SAFE_INTEGER;
+      if (leftRank !== rightRank) return leftRank - rightRank;
+      return left.localeCompare(right);
+    })
+    .map((name) => ({
+      id: `tests/e2e/${name}`,
+      name: `tests/e2e/${name}`,
+      command: process.execPath,
+      args: [path.join('tests', 'e2e', name)]
+    }));
+}
+
+function printDiscoveredTests(testSuites) {
+  if (!testSuites.length) {
+    warn('No test suites were discovered.', { force: true });
+    return;
+  }
+  for (const suite of testSuites) {
+    log(`[PENDING] ${suite.name}`, { force: true });
+  }
+}
+
+function suiteLogFile(suiteName) {
+  if (!currentTestRunDir) return null;
+  return path.join(currentTestRunDir, `${sanitizeFilePart(suiteName)}.log`);
+}
+
+async function runStatusStep(name, action) {
+  const started = Date.now();
+  const quiet = !verboseTestOutput;
+  const previousSuppression = suppressRoutineLogs;
+  const previousLogFile = activeQuietLogFile;
+  const logFile = quiet ? suiteLogFile(name) : null;
+
+  if (logFile) {
+    ensureDir(path.dirname(logFile));
+    fs.writeFileSync(logFile, '', 'utf8');
+  }
+
+  log(`[RUNNING] ${name}`, { force: true });
+  if (quiet) {
+    suppressRoutineLogs = true;
+    activeQuietLogFile = logFile;
+  }
+
+  try {
+    await action();
+    const duration = Date.now() - started;
+    log(`[PASS] ${name} (${formatDuration(duration)})`, { force: true });
+    return { name, status: 0, duration, logFile };
+  } catch (error) {
+    const duration = Date.now() - started;
+    const loggedOutput = logFile && exists(logFile) ? fs.readFileSync(logFile, 'utf8') : '';
+    const failureText = `${error?.stack || error?.message || String(error)}\n${loggedOutput}`;
+    const reason = extractFailureReason(failureText);
+    log(`[FAIL] ${name} (${formatDuration(duration)}) - ${reason}`, { force: true });
+    return { name, status: 1, duration, reason, logFile };
+  } finally {
+    suppressRoutineLogs = previousSuppression;
+    activeQuietLogFile = previousLogFile;
+  }
+}
+
+function runNamedCommand(suite, options = {}) {
+  const started = Date.now();
+  const quiet = !verboseTestOutput;
+  const logFile = quiet ? suiteLogFile(suite.name) : null;
+  if (logFile) {
+    ensureDir(path.dirname(logFile));
+    fs.writeFileSync(logFile, '', 'utf8');
+  }
+
+  log(`[RUNNING] ${suite.name}`, { force: true });
+  const result = run(suite.command, suite.args, {
+    ...options,
+    allowFail: true,
+    quiet,
+    logFile
+  });
+  const status = result.status ?? 1;
+  const duration = Date.now() - started;
+  if (status === 0) {
+    log(`[PASS] ${suite.name} (${formatDuration(duration)})`, { force: true });
+    return { name: suite.name, status, duration, logFile };
+  }
+
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+  const reason = extractFailureReason(output);
+  log(`[FAIL] ${suite.name} (${formatDuration(duration)}) - ${reason}`, { force: true });
+  return { name: suite.name, status, duration, reason, logFile };
+}
+
+function printTestSummary(results) {
+  const passed = results.filter((result) => result.status === 0).length;
+  const failed = results.length - passed;
+  log(`[TOTAL] ${passed} passed, ${failed} failed`, { force: true });
+  const failedLogs = results.filter((result) => result.status !== 0 && result.logFile);
+  if (failedLogs.length) {
+    for (const result of failedLogs) {
+      log(`[DETAIL] ${result.name} log: ${toProjectRelative(result.logFile)}`, { force: true });
+    }
+  }
+}
+
+async function runAllTests() {
+  currentTestRunDir = path.join(projectRoot, 'artifacts', 'test-runs', timestampTag());
+  ensureDir(currentTestRunDir);
+  log('[START] Running all tests under ares-x/tests', { force: true });
+
+  const unitSuites = discoverUnitSuites();
+  const e2eSuites = discoverE2eSuites();
+  const plannedSuites = [...unitSuites, ...e2eSuites];
+  printDiscoveredTests(plannedSuites);
+
+  const results = [];
+
+  if (!unitSuites.length) {
+    warn('No unit test files were found under tests/unit.', { force: true });
+  } else {
+    for (const suite of unitSuites) {
+      results.push(runNamedCommand(suite, { cwd: projectRoot, env }));
+    }
+  }
+
+  if (!e2eSuites.length) {
+    warn('No E2E suites were found under tests/e2e.', { force: true });
+  } else {
+    const preflight = await runStatusStep('test-environment', async () => {
+      await ensureAppium();
+      await buildAndRunAndroid();
+    });
+    if (preflight.status !== 0) {
+      printTestSummary(results);
+      return 1;
+    }
+
+    for (const suite of e2eSuites) {
+      await delay(3500);
+      results.push(runNamedCommand(suite, { cwd: projectRoot, env }));
+    }
+  }
+
+  printTestSummary(results);
+  return results.every((result) => result.status === 0) ? 0 : 1;
+}
+
 function requireNode18() {
   const major = Number(process.versions.node.split('.')[0]);
   if (major < 18) {
@@ -393,6 +710,7 @@ function ensureNpmDependencies() {
   tools.vite = exists(localVite) ? localVite : null;
   tools.tsx = exists(localTsx) ? localTsx : null;
   tools.appium = exists(projectBin('appium')) ? projectBin('appium') : null;
+  tools.vitest = exists(projectBin('vitest')) ? projectBin('vitest') : null;
 }
 
 function repairLocalBinPermissions(localBinDir) {
@@ -841,6 +1159,7 @@ async function startBackendAndWeb() {
 
 const tools = {
   appium: null,
+  vitest: null,
   npm: null,
   npx: null,
   tsx: null,
@@ -849,14 +1168,24 @@ const tools = {
 };
 
 async function main() {
-  log('ARES-X Integrated Adaptive Survey Ecosystem');
-  log(`Project root: ${projectRoot}`);
+  const quietTestMode = runTestsMode && !verboseTestOutput;
+  if (quietTestMode) suppressRoutineLogs = true;
+
+  log('ARES-X Integrated Adaptive Survey Ecosystem', { force: true });
+  log(`Project root: ${projectRoot}`, { force: true });
   requireNode18();
   ensureNpmDependencies();
 
   if (checkOnly) {
     section('Check complete');
     log('The launcher syntax and Node project dependencies look usable.');
+    return;
+  }
+
+  if (runTestsMode) {
+    const code = await runAllTests();
+    suppressRoutineLogs = quietTestMode;
+    await cleanupAndExit(code);
     return;
   }
 
@@ -871,7 +1200,7 @@ async function main() {
 }
 
 main().catch(async (error) => {
-  log('');
-  log(`[error] ${error.message}`);
+  log('', { force: true });
+  log(`[error] ${error.message}`, { force: true });
   await cleanupAndExit(1);
 });

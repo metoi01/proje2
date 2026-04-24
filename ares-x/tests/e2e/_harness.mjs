@@ -28,10 +28,32 @@ export async function waitForUrl(url, timeoutMs = 30000) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
+async function isReachable(url) {
+  try {
+    const response = await fetch(url);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function withServers(fn) {
   console.log('Starting backend and web dev servers...');
-  const backend = spawnLogged(npmCmd, ['run', 'dev:backend'], { cwd: process.cwd() });
-  const web = spawnLogged(npmCmd, ['run', 'dev:web'], { cwd: process.cwd() });
+  let backend = null;
+  let web = null;
+
+  if (await isReachable('http://localhost:3001/health')) {
+    console.log('Reusing existing backend on http://localhost:3001.');
+  } else {
+    backend = spawnLogged(npmCmd, ['run', 'dev:backend'], { cwd: process.cwd() });
+  }
+
+  if (await isReachable('http://localhost:5173')) {
+    console.log('Reusing existing web app on http://localhost:5173.');
+  } else {
+    web = spawnLogged(npmCmd, ['run', 'dev:web'], { cwd: process.cwd() });
+  }
+
   try {
     await waitForUrl('http://localhost:3001/health');
     await waitForUrl('http://localhost:5173');
@@ -45,6 +67,7 @@ export async function withServers(fn) {
 }
 
 function killTree(child) {
+  if (!child) return;
   if (!child.pid) return;
   if (process.platform === 'win32') {
     try {
